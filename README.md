@@ -1,4 +1,4 @@
-# Soroban Project
+# Token Vesting and Grant Distribution Contracts for Stellar Network
 
 ## Project Structure
 
