@@ -4,7 +4,7 @@ use soroban_sdk::{
     U256,
 };
 
-// Constants for storage keys.
+/// Constants for storage keys.
 
 // Maps the admins of the contract.
 const ADMINS: Symbol = symbol_short!("ADMINS");
@@ -112,9 +112,62 @@ impl TokenVestingManager {
         // Implementation
     }
 
-    pub fn calculate_vested_amount(env: Env, vesting: Vesting, reference_timestamp: u64) -> U256 {
-        // Implementation
-        U256::from_u32(&env, 0)
+    /// Calculates the vested amount for a given Vesting, at a given timestamp.
+    pub fn calculate_vested_amount(
+        env: Env,
+        vesting: Vesting,
+        mut reference_timestamp: u64,
+    ) -> U256 {
+        if vesting.deactivation_timestamp != 0
+            && reference_timestamp > vesting.deactivation_timestamp
+        {
+            reference_timestamp = vesting.deactivation_timestamp;
+        }
+
+        let mut vesting_amount: U256 = U256::from_u32(&env, 0);
+
+        if reference_timestamp >= vesting.end_timestamp {
+            reference_timestamp = vesting.end_timestamp;
+        }
+
+        if reference_timestamp >= vesting.cliff_release_timestamp {
+            vesting_amount = vesting_amount.add(&vesting.cliff_amount);
+        }
+
+        if vesting.initial_unlock > U256::from_u32(&env, 0)
+            && reference_timestamp >= vesting.start_timestamp
+        {
+            vesting_amount = vesting_amount.add(&vesting.initial_unlock);
+        }
+
+        let mut start_timestamp: u64 = 0;
+
+        if vesting.cliff_release_timestamp != 0 {
+            start_timestamp = vesting.cliff_release_timestamp;
+        } else {
+            start_timestamp = vesting.start_timestamp;
+        }
+
+        if reference_timestamp > start_timestamp {
+            let current_vesting_duration_secs = reference_timestamp - start_timestamp;
+            let truncated_current_vesting_duration_secs = (current_vesting_duration_secs
+                / vesting.release_interval_secs)
+                * vesting.release_interval_secs;
+
+            let final_vesting_duration_secs = vesting.end_timestamp - start_timestamp;
+
+            let linear_vest_amount = vesting
+                .linear_vest_amount
+                .mul(&U256::from_u128(
+                    &env,
+                    truncated_current_vesting_duration_secs.into(),
+                ))
+                .div(&U256::from_u128(&env, final_vesting_duration_secs.into()));
+
+            vesting_amount = vesting_amount.add(&linear_vest_amount);
+        }
+
+        vesting_amount
     }
 
     pub fn withdraw_admin(env: Env, amount_requested: U256) {
