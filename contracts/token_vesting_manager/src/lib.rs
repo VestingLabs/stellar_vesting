@@ -55,7 +55,7 @@ pub struct CreateVestingBatchParams {
     pub cliff_release_timestamps: Vec<u64>,
     pub cliff_amounts: Vec<U256>,
     pub release_interval_secs: Vec<u64>,
-    pub linear_vest_amount: Vec<U256>,
+    pub linear_vest_amounts: Vec<U256>,
 }
 
 #[contract]
@@ -104,10 +104,12 @@ impl TokenVestingManager {
             .publish((ADMIN_ACCESS_SET,), (admin, is_enabled));
     }
 
+    /// Returns the number of admins for the Token Vesting Manager contract.
     pub fn get_admins_count(env: Env) -> u32 {
         env.storage().persistent().get(&ADMIN_COUNT).unwrap_or(0)
     }
 
+    /// Returns true if the given address is an admin, false otherwise.
     pub fn is_admin(env: Env, address: Address) -> bool {
         let admins: Map<Address, bool> = env
             .storage()
@@ -118,6 +120,7 @@ impl TokenVestingManager {
         admins.get(address).unwrap_or(false)
     }
 
+    /// Creates a vesting schedule for a recipient and returns a vesting ID.
     pub fn create_vesting(
         env: Env,
         caller: Address,
@@ -255,20 +258,98 @@ impl TokenVestingManager {
         vesting_id
     }
 
+    /// Creates vesting schedules in batch for multiple recipients.
     pub fn create_vesting_batch(
         env: Env,
+        caller: Address,
         create_vesting_batch_params: CreateVestingBatchParams,
     ) -> Vec<U256> {
-        // Implementation
-        Vec::new(&env)
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller.clone()).is_some() {
+            panic!("Not an admin");
+        }
+
+        let length: u32 = create_vesting_batch_params.recipients.len();
+        assert!(
+            create_vesting_batch_params.start_timestamps.len() == length
+                && create_vesting_batch_params.end_timestamps.len() == length
+                && create_vesting_batch_params.timelocks.len() == length
+                && create_vesting_batch_params.initial_unlocks.len() == length
+                && create_vesting_batch_params.cliff_release_timestamps.len() == length
+                && create_vesting_batch_params.cliff_amounts.len() == length
+                && create_vesting_batch_params.release_interval_secs.len() == length
+                && create_vesting_batch_params.linear_vest_amounts.len() == length,
+            "Array length mismatch"
+        );
+
+        let mut vesting_ids: Vec<U256> = Vec::new(&env);
+
+        for i in 0..length {
+            vesting_ids.insert(
+                i,
+                Self::create_vesting(
+                    env.clone(),
+                    caller.clone(),
+                    create_vesting_batch_params.recipients.get(i).unwrap(),
+                    create_vesting_batch_params.start_timestamps.get(i).unwrap(),
+                    create_vesting_batch_params.end_timestamps.get(i).unwrap(),
+                    create_vesting_batch_params.timelocks.get(i).unwrap(),
+                    create_vesting_batch_params.initial_unlocks.get(i).unwrap(),
+                    create_vesting_batch_params
+                        .cliff_release_timestamps
+                        .get(i)
+                        .unwrap(),
+                    create_vesting_batch_params.cliff_amounts.get(i).unwrap(),
+                    create_vesting_batch_params
+                        .release_interval_secs
+                        .get(i)
+                        .unwrap(),
+                    create_vesting_batch_params
+                        .linear_vest_amounts
+                        .get(i)
+                        .unwrap(),
+                ),
+            )
+        }
+
+        vesting_ids
     }
 
-    pub fn claim(env: Env, vesting_id: U256) {
-        // Implementation
+    /// Allows a recipient to claim their vested tokens.
+    pub fn claim(env: Env, caller: Address, vesting_id: U256) {
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller.clone()).is_some() {
+            panic!("Not an admin");
+        }
     }
 
-    pub fn revoke_vesting(env: Env, vesting_id: U256) {
-        // Implementation
+    /// Revokes a vesting arrangement before it has been fully claimed.
+    pub fn revoke_vesting(env: Env, caller: Address, vesting_id: U256) {
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller.clone()).is_some() {
+            panic!("Not an admin");
+        }
     }
 
     /// Calculates the vested amount for a given Vesting, at a given timestamp.
@@ -329,14 +410,17 @@ impl TokenVestingManager {
         vesting_amount
     }
 
+    /// Allows the admin to withdraw ERC20 tokens not locked in vesting.
     pub fn withdraw_admin(env: Env, amount_requested: U256) {
         // Implementation
     }
 
+    /// Withdraws other ERC20 tokens accidentally sent to the contract's address.
     pub fn withdraw_other_token(env: Env, other_token_address: Address) {
         // Implementation
     }
 
+    /// Returns the amount of tokens that are available for the admin to withdraw.
     pub fn amount_to_withdraw_by_admin(env: Env) -> U256 {
         // Implementation
         U256::from_u32(&env, 0)
