@@ -1,21 +1,48 @@
 # Token Vesting and Grant Distribution Contracts for Stellar Network
 
-## Project Structure
+This set of contracts provides a flexible and extensible framework for managing
+token vesting schedules and grant distributions. The contracts are designed to
+support a wide range of use cases, including employee compensation, advisor
+grants, community rewards, vestings, and more.
 
-This repository uses the recommended structure for a Soroban project:
-```text
-.
-├── contracts
-│   └── hello_world
-│       ├── src
-│       │   ├── lib.rs
-│       │   └── test.rs
-│       └── Cargo.toml
-├── Cargo.toml
-└── README.md
+
+## Key Features 🔑
+
+### Vesting Schedules (`TokenVestingManager`)
+
+Fundamental building block for managing token vesting schedules.
+
+- **Flexible Vesting Schedules**: Create custom vesting schedules for token
+  recipients, with support for timelock, cliff, Unlock-Cliff vesting models.
+- **Controlled Token Release**: Recipients can withdraw their vested tokens
+  according to the vesting schedule, ensuring a controlled release of
+  tokens over time.
+- **Revocation and Reclamation**: The contract owner has the ability to revoke
+  a vesting schedule and reclaim any unvested tokens.
+- **Administrative Functions**: The contract owner can also withdraw
+  unallocated tokens and tokens of other types, providing additional
+  flexibility and control.
+- **Multiple Vestings**: Multiple vestings per address.
+- **Initial Unlock**: Optional initial unlock of tokens at the
+  start of the vesting.
+- **Timelock**: Optional timelock on top of vesting schedule to
+  prevent premature withdrawals.
+
+# Development
+This project uses soroban-sdk 21.0.0. You will need to install Rust and Stellar CLI in order to build the project and run tests.
+
+## Prerequisites
+Install Rust and Stellar CLI
+
+## Build and run
+1. Compile
+
+```shell
+make build
 ```
 
-- New Soroban contracts can be put in `contracts`, each in their own directory. There is already a `hello_world` contract in there to get you started.
-- If you initialized this project with any other example contracts via `--with-example`, those contracts will be in the `contracts` directory as well.
-- Contracts should have their own `Cargo.toml` files that rely on the top-level `Cargo.toml` workspace for their dependencies.
-- Frontend libraries can be added to the top-level directory as well. If you initialized this project with a frontend template via `--frontend-template` you will have those files already included.
+2. Test
+
+```shell
+make test
+```
