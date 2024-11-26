@@ -23,6 +23,10 @@ const NONCE: Symbol = symbol_short!("NONCE");
 // List of all recipients.
 const RECIPIENTS: Symbol = symbol_short!("RECIPS");
 
+/// Constants for events.
+
+const ADMIN_ACCESS_SET: Symbol = symbol_short!("ADMINSET");
+
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Vesting {
@@ -60,13 +64,13 @@ pub struct TokenVestingManager;
 impl TokenVestingManager {
     /// Adds a new admin or remove an existing one for the Token Vesting Manager contract.
     pub fn set_admin(env: Env, caller: Address, admin: Address, is_enabled: bool) {
-        // onlyAdmin check
         let mut admins: Map<Address, bool> = env
             .storage()
             .persistent()
             .get(&ADMINS)
             .unwrap_or(Map::new(&env));
 
+        // Access control check
         caller.require_auth();
         if !admins.get(caller).is_some() {
             panic!("Not an admin");
@@ -93,10 +97,11 @@ impl TokenVestingManager {
                 .set(&ADMIN_COUNT, &new_admin_count);
         }
 
-        admins.set(admin, is_enabled);
+        admins.set(admin.clone(), is_enabled);
         env.storage().persistent().set(&ADMINS, &admins);
 
-        // self.emit(AdminAccessSet { admin: admin, enabled: is_enabled });
+        env.events()
+            .publish((ADMIN_ACCESS_SET, "set_admin"), (admin, is_enabled));
     }
 
     pub fn get_admins_count(env: Env) -> u32 {
