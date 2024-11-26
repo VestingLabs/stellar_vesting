@@ -101,7 +101,7 @@ impl TokenVestingManager {
         env.storage().persistent().set(&ADMINS, &admins);
 
         env.events()
-            .publish((ADMIN_ACCESS_SET, "set_admin"), (admin, is_enabled));
+            .publish((ADMIN_ACCESS_SET,), (admin, is_enabled));
     }
 
     pub fn get_admins_count(env: Env) -> u32 {
