@@ -1277,6 +1277,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "token-vesting-factory"
+version = "0.0.0"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "token-vesting-manager"
 version = "0.0.0"
 dependencies = [
