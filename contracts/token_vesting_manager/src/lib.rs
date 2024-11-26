@@ -58,10 +58,45 @@ pub struct TokenVestingManager;
 
 #[contractimpl]
 impl TokenVestingManager {
-    // ADMIN RELATED METHODS
+    /// Adds a new admin or remove an existing one for the Token Vesting Manager contract.
+    pub fn set_admin(env: Env, caller: Address, admin: Address, is_enabled: bool) {
+        // onlyAdmin check
+        let mut admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
 
-    pub fn set_admin(env: Env, admin: Address, is_enabled: bool) {
-        // Implementation
+        caller.require_auth();
+        if !admins.get(caller).is_some() {
+            panic!("Not an admin");
+        }
+
+        assert!(
+            admins.get(admin.clone()).unwrap_or(!is_enabled) != is_enabled,
+            "Flag provided already set"
+        );
+
+        // Should we use unwrap_or or simply unwrap?
+        let admin_count: u32 = env.storage().persistent().get(&ADMIN_COUNT).unwrap_or(0);
+
+        if is_enabled {
+            let new_admin_count: u32 = admin_count + 1;
+            env.storage()
+                .persistent()
+                .set(&ADMIN_COUNT, &new_admin_count);
+        } else {
+            assert!(admin_count > 1, "There must always be at least 1 admin");
+            let new_admin_count: u32 = admin_count - 1;
+            env.storage()
+                .persistent()
+                .set(&ADMIN_COUNT, &new_admin_count);
+        }
+
+        admins.set(admin, is_enabled);
+        env.storage().persistent().set(&ADMINS, &admins);
+
+        // self.emit(AdminAccessSet { admin: admin, enabled: is_enabled });
     }
 
     pub fn get_admins_count(env: Env) -> u32 {
@@ -77,8 +112,6 @@ impl TokenVestingManager {
 
         admins.get(address).unwrap_or(false)
     }
-
-    // TOKEN VESTING MANAGER METHODS
 
     pub fn create_vesting(
         env: Env,
@@ -287,7 +320,7 @@ impl TokenVestingManager {
         env.storage()
             .persistent()
             .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0x0")))
+            .unwrap_or(Address::from_string(&String::from_str(&env, "0")))
     }
 
     /// Returns the amount of token reserved for vesting in the contract.

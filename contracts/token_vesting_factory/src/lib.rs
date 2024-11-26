@@ -8,7 +8,6 @@ use soroban_sdk::{
 pub struct TokenVestingFactory;
 
 #[contractimpl]
-impl TokenVestingFactory {
-}
+impl TokenVestingFactory {}
 
 mod test;
