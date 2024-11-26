@@ -26,6 +26,7 @@ const RECIPIENTS: Symbol = symbol_short!("RECIPS");
 /// Constants for events.
 
 const ADMIN_ACCESS_SET: Symbol = symbol_short!("ADMINSET");
+const VESTING_CREATED: Symbol = symbol_short!("VCREATED");
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -81,7 +82,6 @@ impl TokenVestingManager {
             "Flag provided already set"
         );
 
-        // Should we use unwrap_or or simply unwrap?
         let admin_count: u32 = env.storage().persistent().get(&ADMIN_COUNT).unwrap_or(0);
 
         if is_enabled {
@@ -120,6 +120,7 @@ impl TokenVestingManager {
 
     pub fn create_vesting(
         env: Env,
+        caller: Address,
         recipient: Address,
         start_timestamp: u64,
         end_timestamp: u64,
@@ -130,8 +131,128 @@ impl TokenVestingManager {
         release_interval_secs: u64,
         linear_vest_amount: U256,
     ) -> U256 {
-        // Implementation
-        U256::from_u32(&env, 0)
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller).is_some() {
+            panic!("Not an admin");
+        }
+
+        assert!(
+            linear_vest_amount.add(&cliff_amount) != U256::from_u32(&env, 0),
+            "Invalid vested amount"
+        );
+        assert!(
+            start_timestamp != 0 && start_timestamp < end_timestamp,
+            "Invalid start timestamp"
+        );
+        assert!(release_interval_secs != 0, "Invalid release interval");
+
+        if cliff_release_timestamp == 0 {
+            assert!(
+                cliff_amount == U256::from_u32(&env, 0),
+                "invalid cliff amount"
+            );
+            assert!(
+                (end_timestamp - start_timestamp) % release_interval_secs == 0,
+                "Invalid interval length"
+            );
+        } else {
+            assert!(
+                cliff_amount != U256::from_u32(&env, 0),
+                "Invalid cliff amount"
+            );
+            assert!(
+                start_timestamp <= cliff_release_timestamp
+                    && cliff_release_timestamp < end_timestamp,
+                "Invalid cliff release"
+            );
+            assert!(
+                (end_timestamp - cliff_release_timestamp) % release_interval_secs == 0,
+                "Invalid interval length"
+            );
+        }
+
+        let total_expected_amount = initial_unlock.add(&cliff_amount).add(&linear_vest_amount);
+
+        let reserved_tokens = env
+            .storage()
+            .persistent()
+            .get(&TOKENS_RESERVED_FOR_VESTING)
+            .unwrap_or(U256::from_u32(&env, 0))
+            .add(&total_expected_amount);
+
+        env.storage()
+            .persistent()
+            .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
+
+        let vesting: Vesting = Vesting {
+            recipient: recipient.clone(),
+            start_timestamp: start_timestamp,
+            end_timestamp: end_timestamp,
+            deactivation_timestamp: 0,
+            timelock: timelock,
+            release_interval_secs: release_interval_secs,
+            cliff_release_timestamp: cliff_release_timestamp,
+            initial_unlock: initial_unlock,
+            cliff_amount: cliff_amount,
+            linear_vest_amount: linear_vest_amount,
+            claimed_amount: U256::from_u32(&env, 0),
+        };
+
+        let vesting_id: U256 = env.storage().persistent().get(&NONCE).unwrap();
+        let new_vesting_id: U256 = vesting_id.add(&U256::from_u32(&env, 1));
+        env.storage().persistent().set(&NONCE, &new_vesting_id);
+
+        if !Self::is_recipient(env.clone(), recipient.clone()) {
+            let mut recipients: Vec<Address> = env
+                .storage()
+                .persistent()
+                .get(&RECIPIENTS)
+                .unwrap_or(Vec::new(&env));
+
+            recipients.insert(recipients.len(), recipient.clone());
+            env.storage().persistent().set(&RECIPIENTS, &recipients);
+        }
+
+        let mut vesting_by_id: Map<U256, Vesting> = env
+            .storage()
+            .persistent()
+            .get(&VESTING_BY_ID)
+            .unwrap_or(Map::new(&env));
+
+        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        env.storage()
+            .persistent()
+            .set(&VESTING_BY_ID, &vesting_by_id);
+
+        let mut recipient_vestings: Vec<U256> = env
+            .storage()
+            .persistent()
+            .get(&RECIPIENT_VESTINGS)
+            .unwrap_or(Vec::new(&env));
+
+        recipient_vestings.insert(recipient_vestings.len(), vesting_id.clone());
+        env.storage()
+            .persistent()
+            .set(&RECIPIENT_VESTINGS, &recipient_vestings);
+
+        env.events()
+            .publish((VESTING_CREATED,), (vesting_id.clone(), recipient, vesting));
+
+        // let token_dispatcher = ERC20ABIDispatcher {
+        //     contract_address: self.token_address.read()
+        // };
+
+        // token_dispatcher
+        //     .transfer_from(get_caller_address(), get_contract_address(), total_expected_amount);
+
+        vesting_id
     }
 
     pub fn create_vesting_batch(
