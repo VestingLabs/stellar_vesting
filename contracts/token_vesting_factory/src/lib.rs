@@ -1,7 +1,5 @@
 #![no_std]
-use soroban_sdk::{
-    contract, contractimpl, symbol_short, Address, BytesN, Env, String, Symbol, Val, Vec,
-};
+use soroban_sdk::{contract, contractimpl, symbol_short, Address, BytesN, Env, Symbol, Val, Vec};
 
 /// Constants for storage keys.
 
@@ -60,11 +58,7 @@ impl TokenVestingFactory {
 
     /// Updates the owner of the factory.
     pub fn update_owner(env: Env, caller: Address, new_owner: Address) {
-        let owner: Address = env
-            .storage()
-            .persistent()
-            .get(&OWNER)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+        let owner: Address = env.storage().persistent().get(&OWNER).unwrap();
 
         // Access control check
         caller.require_auth();
@@ -81,11 +75,7 @@ impl TokenVestingFactory {
 
     /// Updates the Wasm hash of the TokenVestingManager contract.
     pub fn update_vesting_manager_wasm_hash(env: Env, caller: Address, new_wasm_hash: BytesN<32>) {
-        let owner: Address = env
-            .storage()
-            .persistent()
-            .get(&OWNER)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+        let owner: Address = env.storage().persistent().get(&OWNER).unwrap();
 
         // Access control check
         caller.require_auth();
@@ -93,11 +83,7 @@ impl TokenVestingFactory {
             panic!("Not the owner");
         }
 
-        let wasm_hash = env
-            .storage()
-            .persistent()
-            .get(&WASM_HASH)
-            .unwrap_or(BytesN::from_array(&env, &[0; 32]));
+        let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
 
         assert!(new_wasm_hash != wasm_hash, "New Wasm hash wrongly set");
 
@@ -108,18 +94,12 @@ impl TokenVestingFactory {
 
     /// Returns the owner of the factory.
     pub fn get_owner(env: Env) -> Address {
-        env.storage()
-            .persistent()
-            .get(&OWNER)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")))
+        env.storage().persistent().get(&OWNER).unwrap()
     }
 
     /// Returns the Wasm hash of the TokenVestingManager contract.
     pub fn get_vesting_manager_wasm_hash(env: Env) -> BytesN<32> {
-        env.storage()
-            .persistent()
-            .get(&WASM_HASH)
-            .unwrap_or(BytesN::from_array(&env, &[0; 32]))
+        env.storage().persistent().get(&WASM_HASH).unwrap()
     }
 }
 
