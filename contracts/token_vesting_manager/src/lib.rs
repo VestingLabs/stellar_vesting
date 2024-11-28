@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, Address, Env, Map, String, Symbol, Vec,
-    U256,
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, Map, String, Symbol,
+    Val, Vec, U256,
 };
 
 /// Constants for storage keys.
@@ -160,7 +160,7 @@ impl TokenVestingManager {
 
         // Access control check
         caller.require_auth();
-        if !admins.get(caller).is_some() {
+        if !admins.get(caller.clone()).is_some() {
             panic!("Not an admin");
         }
 
@@ -266,12 +266,22 @@ impl TokenVestingManager {
         env.events()
             .publish((VESTING_CREATED,), (vesting_id.clone(), recipient, vesting));
 
-        // let token_dispatcher = ERC20ABIDispatcher {
-        //     contract_address: self.token_address.read()
-        // };
+        let token_address: Address = env
+            .storage()
+            .persistent()
+            .get(&TOKEN_ADDRESS)
+            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
 
-        // token_dispatcher
-        //     .transfer_from(get_caller_address(), get_contract_address(), total_expected_amount);
+        let _: Val = env.invoke_contract(
+            &token_address,
+            &Symbol::new(&env, "transfer_from"),
+            vec![
+                &env,
+                caller.to_val(),
+                env.current_contract_address().to_val(),
+                total_expected_amount.to_val(),
+            ],
+        );
 
         vesting_id
     }
@@ -388,13 +398,22 @@ impl TokenVestingManager {
             .persistent()
             .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
 
-        env.events()
-            .publish((CLAIMED,), (vesting_id.clone(), caller, claimable));
+        env.events().publish(
+            (CLAIMED,),
+            (vesting_id.clone(), caller.clone(), claimable.clone()),
+        );
 
-        // let token_dispatcher = ERC20ABIDispatcher {
-        //     contract_address: self.token_address.read()
-        // };
-        // token_dispatcher.transfer(get_caller_address(), claimable);
+        let token_address: Address = env
+            .storage()
+            .persistent()
+            .get(&TOKEN_ADDRESS)
+            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+
+        let _: Val = env.invoke_contract(
+            &token_address,
+            &Symbol::new(&env, "transfer"),
+            vec![&env, caller.to_val(), claimable.to_val()],
+        );
     }
 
     /// Revokes a vesting arrangement before it has been fully claimed.
@@ -461,24 +480,22 @@ impl TokenVestingManager {
     }
 
     /// Calculates the vested amount for a given Vesting, at a given timestamp.
-    pub fn calculate_vested_amount(
-        env: Env,
-        vesting: Vesting,
-        mut reference_timestamp: u64,
-    ) -> U256 {
+    pub fn calculate_vested_amount(env: Env, vesting: Vesting, reference_timestamp: u64) -> U256 {
+        let mut adjusted_reference_timestamp = reference_timestamp;
+
         if vesting.deactivation_timestamp != 0
-            && reference_timestamp > vesting.deactivation_timestamp
+            && adjusted_reference_timestamp > vesting.deactivation_timestamp
         {
-            reference_timestamp = vesting.deactivation_timestamp;
+            adjusted_reference_timestamp = vesting.deactivation_timestamp;
         }
 
         let mut vesting_amount: U256 = U256::from_u32(&env, 0);
 
-        if reference_timestamp >= vesting.end_timestamp {
-            reference_timestamp = vesting.end_timestamp;
+        if adjusted_reference_timestamp >= vesting.end_timestamp {
+            adjusted_reference_timestamp = vesting.end_timestamp;
         }
 
-        if reference_timestamp >= vesting.cliff_release_timestamp {
+        if adjusted_reference_timestamp >= vesting.cliff_release_timestamp {
             vesting_amount = vesting_amount.add(&vesting.cliff_amount);
         }
 
@@ -488,7 +505,7 @@ impl TokenVestingManager {
             vesting_amount = vesting_amount.add(&vesting.initial_unlock);
         }
 
-        let mut start_timestamp: u64 = 0;
+        let start_timestamp: u64;
 
         if vesting.cliff_release_timestamp != 0 {
             start_timestamp = vesting.cliff_release_timestamp;
@@ -496,8 +513,8 @@ impl TokenVestingManager {
             start_timestamp = vesting.start_timestamp;
         }
 
-        if reference_timestamp > start_timestamp {
-            let current_vesting_duration_secs = reference_timestamp - start_timestamp;
+        if adjusted_reference_timestamp > start_timestamp {
+            let current_vesting_duration_secs = adjusted_reference_timestamp - start_timestamp;
             let truncated_current_vesting_duration_secs = (current_vesting_duration_secs
                 / vesting.release_interval_secs)
                 * vesting.release_interval_secs;
@@ -535,13 +552,22 @@ impl TokenVestingManager {
         let amount_remaining = Self::amount_to_withdraw_by_admin(env.clone());
         assert!(amount_remaining >= amount_requested, "Insuffisance balance");
 
-        env.events()
-            .publish((ADMIN_WITHDRAWN,), (caller, amount_requested));
+        env.events().publish(
+            (ADMIN_WITHDRAWN,),
+            (caller.clone(), amount_requested.clone()),
+        );
 
-        // let token_dispatcher = ERC20ABIDispatcher {
-        //     contract_address: self.token_address.read()
-        // };
-        // token_dispatcher.transfer(get_caller_address(), amount_requested);
+        let token_address: Address = env
+            .storage()
+            .persistent()
+            .get(&TOKEN_ADDRESS)
+            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+
+        let _: Val = env.invoke_contract(
+            &token_address,
+            &Symbol::new(&env, "transfer"),
+            vec![&env, caller.to_val(), amount_requested.to_val()],
+        );
     }
 
     /// Withdraws other ERC20 tokens accidentally sent to the contract's address.
@@ -563,21 +589,40 @@ impl TokenVestingManager {
             "Invalid other token"
         );
 
-        // let token_dispatcher = ERC20ABIDispatcher { contract_address: other_token_address };
-        // let balance = token_dispatcher.balance_of(get_contract_address());
-        // token_dispatcher.transfer(get_caller_address(), balance);
+        let balance: Val = env.invoke_contract(
+            &other_token_address,
+            &Symbol::new(&env, "balance"),
+            vec![&env, env.current_contract_address().to_val()],
+        );
+
+        let _: Val = env.invoke_contract(
+            &other_token_address,
+            &Symbol::new(&env, "transfer"),
+            vec![&env, caller.to_val(), balance],
+        );
     }
 
     /// Returns the amount of tokens that are available for the admin to withdraw.
     pub fn amount_to_withdraw_by_admin(env: Env) -> U256 {
-        // let token_dispatcher = ERC20ABIDispatcher {
-        //     contract_address: self.token_address.read()
-        // };
+        let token_address: Address = env
+            .storage()
+            .persistent()
+            .get(&TOKEN_ADDRESS)
+            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
 
-        // token_dispatcher.balance_of(get_contract_address())
-        //     - self.tokens_reserved_for_vesting.read()
+        let balance: U256 = env.invoke_contract(
+            &token_address,
+            &Symbol::new(&env, "balance"),
+            vec![&env, env.current_contract_address().to_val()],
+        );
 
-        U256::from_u32(&env, 0)
+        let reserved_tokens = env
+            .storage()
+            .persistent()
+            .get(&TOKENS_RESERVED_FOR_VESTING)
+            .unwrap_or(U256::from_u32(&env, 0));
+
+        balance.sub(&reserved_tokens)
     }
 
     /// Retrieves information about a specific vesting arrangement.

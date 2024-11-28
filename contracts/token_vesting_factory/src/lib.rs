@@ -30,10 +30,7 @@ impl TokenVestingFactory {
     }
 
     /// Deploys a new TokenVestingManager contract and returns its address.
-    pub fn new_token_vesting_manager(
-        env: Env,
-        init_args: Vec<Val>,
-    ) -> (Address, Val) {
+    pub fn new_token_vesting_manager(env: Env, init_args: Vec<Val>) -> (Address, Val) {
         let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
         let salt: BytesN<32> = env.storage().persistent().get(&SALT).unwrap();
 
