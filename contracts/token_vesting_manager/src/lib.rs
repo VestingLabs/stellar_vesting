@@ -68,6 +68,10 @@ pub struct TokenVestingManager;
 impl TokenVestingManager {
     /// Initialization function.
     pub fn init(env: Env, factory_caller: Address, token_address: Address) {
+        if env.storage().persistent().has(&ADMINS) {
+            panic!("Already initialized");
+        }
+
         let mut admins: Map<Address, bool> = env
             .storage()
             .persistent()
@@ -77,8 +81,10 @@ impl TokenVestingManager {
         env.storage().persistent().set(&ADMINS, &admins);
 
         let admin_count: u32 = 1;
-        env.storage().instance().set(&ADMIN_COUNT, &admin_count);
-        env.storage().instance().set(&TOKEN_ADDRESS, &token_address);
+        env.storage().persistent().set(&ADMIN_COUNT, &admin_count);
+        env.storage()
+            .persistent()
+            .set(&TOKEN_ADDRESS, &token_address);
     }
 
     /// Adds a new admin or remove an existing one for the Token Vesting Manager contract.
@@ -226,7 +232,11 @@ impl TokenVestingManager {
             claimed_amount: U256::from_u32(&env, 0),
         };
 
-        let vesting_id: U256 = env.storage().persistent().get(&NONCE).unwrap();
+        let vesting_id: U256 = env
+            .storage()
+            .persistent()
+            .get(&NONCE)
+            .unwrap_or(U256::from_u32(&env, 0));
         let new_vesting_id: U256 = vesting_id.add(&U256::from_u32(&env, 1));
         env.storage().persistent().set(&NONCE, &new_vesting_id);
 

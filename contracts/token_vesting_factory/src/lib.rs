@@ -25,8 +25,12 @@ pub struct TokenVestingFactory;
 impl TokenVestingFactory {
     /// Initialization function.
     pub fn init(env: Env, owner: Address, wasm_hash: BytesN<32>) {
-        env.storage().instance().set(&OWNER, &owner);
-        env.storage().instance().set(&WASM_HASH, &wasm_hash);
+        if env.storage().persistent().has(&OWNER) {
+            panic!("Already initialized");
+        }
+
+        env.storage().persistent().set(&OWNER, &owner);
+        env.storage().persistent().set(&WASM_HASH, &wasm_hash);
     }
 
     /// Deploys a new TokenVestingManager contract and returns its address.
