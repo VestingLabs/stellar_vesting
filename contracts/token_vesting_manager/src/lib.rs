@@ -27,6 +27,9 @@ const RECIPIENTS: Symbol = symbol_short!("RECIPS");
 
 const ADMIN_ACCESS_SET: Symbol = symbol_short!("ADMINSET");
 const VESTING_CREATED: Symbol = symbol_short!("VCREATED");
+const CLAIMED: Symbol = symbol_short!("CLAIMED");
+const VESTING_REVOKED: Symbol = symbol_short!("VREVOKED");
+const ADMIN_WITHDRAWN: Symbol = symbol_short!("ADMINWITH");
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -196,15 +199,15 @@ impl TokenVestingManager {
 
         let vesting: Vesting = Vesting {
             recipient: recipient.clone(),
-            start_timestamp: start_timestamp,
-            end_timestamp: end_timestamp,
+            start_timestamp,
+            end_timestamp,
             deactivation_timestamp: 0,
-            timelock: timelock,
-            release_interval_secs: release_interval_secs,
-            cliff_release_timestamp: cliff_release_timestamp,
-            initial_unlock: initial_unlock,
-            cliff_amount: cliff_amount,
-            linear_vest_amount: linear_vest_amount,
+            timelock,
+            release_interval_secs,
+            cliff_release_timestamp,
+            initial_unlock,
+            cliff_amount,
+            linear_vest_amount,
             claimed_amount: U256::from_u32(&env, 0),
         };
 
@@ -324,17 +327,59 @@ impl TokenVestingManager {
 
     /// Allows a recipient to claim their vested tokens.
     pub fn claim(env: Env, caller: Address, vesting_id: U256) {
-        let admins: Map<Address, bool> = env
-            .storage()
-            .persistent()
-            .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+        let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
 
         // Access control check
         caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
+        if vesting.recipient != caller {
+            panic!("Not vesting owner");
         }
+
+        assert!(
+            vesting.timelock <= env.ledger().timestamp(),
+            "Timelock enabled"
+        );
+
+        let vest_amount =
+            Self::calculate_vested_amount(env.clone(), vesting.clone(), env.ledger().timestamp());
+        let claimable = vest_amount.sub(&vesting.claimed_amount);
+
+        assert!(
+            claimable != U256::from_u32(&env, 0),
+            "Insufficient balance to claim"
+        );
+
+        vesting.claimed_amount = vesting.claimed_amount.add(&claimable);
+
+        let mut vesting_by_id: Map<U256, Vesting> = env
+            .storage()
+            .persistent()
+            .get(&VESTING_BY_ID)
+            .unwrap_or(Map::new(&env));
+
+        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        env.storage()
+            .persistent()
+            .set(&VESTING_BY_ID, &vesting_by_id);
+
+        let reserved_tokens = env
+            .storage()
+            .persistent()
+            .get(&TOKENS_RESERVED_FOR_VESTING)
+            .unwrap_or(U256::from_u32(&env, 0))
+            .sub(&claimable);
+
+        env.storage()
+            .persistent()
+            .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
+
+        env.events()
+            .publish((CLAIMED,), (vesting_id.clone(), caller, claimable));
+
+        // let token_dispatcher = ERC20ABIDispatcher {
+        //     contract_address: self.token_address.read()
+        // };
+        // token_dispatcher.transfer(get_caller_address(), claimable);
     }
 
     /// Revokes a vesting arrangement before it has been fully claimed.
@@ -350,6 +395,54 @@ impl TokenVestingManager {
         if !admins.get(caller.clone()).is_some() {
             panic!("Not an admin");
         }
+
+        let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
+        assert!(vesting.deactivation_timestamp == 0, "Vesting not active");
+
+        let final_vest_amount =
+            Self::calculate_vested_amount(env.clone(), vesting.clone(), vesting.end_timestamp);
+        assert!(
+            final_vest_amount != vesting.claimed_amount,
+            "All vested amount already claimed"
+        );
+
+        vesting.deactivation_timestamp = env.ledger().timestamp();
+
+        let mut vesting_by_id: Map<U256, Vesting> = env
+            .storage()
+            .persistent()
+            .get(&VESTING_BY_ID)
+            .unwrap_or(Map::new(&env));
+
+        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        env.storage()
+            .persistent()
+            .set(&VESTING_BY_ID, &vesting_by_id);
+
+        let vested_amount_now =
+            Self::calculate_vested_amount(env.clone(), vesting.clone(), env.ledger().timestamp());
+        let amount_remaining = final_vest_amount.sub(&vested_amount_now);
+
+        let reserved_tokens = env
+            .storage()
+            .persistent()
+            .get(&TOKENS_RESERVED_FOR_VESTING)
+            .unwrap_or(U256::from_u32(&env, 0))
+            .sub(&amount_remaining);
+
+        env.storage()
+            .persistent()
+            .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
+
+        env.events().publish(
+            (VESTING_REVOKED,),
+            (
+                vesting_id.clone(),
+                vesting.clone().recipient,
+                amount_remaining,
+                vesting,
+            ),
+        );
     }
 
     /// Calculates the vested amount for a given Vesting, at a given timestamp.
@@ -411,18 +504,64 @@ impl TokenVestingManager {
     }
 
     /// Allows the admin to withdraw ERC20 tokens not locked in vesting.
-    pub fn withdraw_admin(env: Env, amount_requested: U256) {
-        // Implementation
+    pub fn withdraw_admin(env: Env, caller: Address, amount_requested: U256) {
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller.clone()).is_some() {
+            panic!("Not an admin");
+        }
+
+        let amount_remaining = Self::amount_to_withdraw_by_admin(env.clone());
+        assert!(amount_remaining >= amount_requested, "Insuffisance balance");
+
+        env.events()
+            .publish((ADMIN_WITHDRAWN,), (caller, amount_requested));
+
+        // let token_dispatcher = ERC20ABIDispatcher {
+        //     contract_address: self.token_address.read()
+        // };
+        // token_dispatcher.transfer(get_caller_address(), amount_requested);
     }
 
     /// Withdraws other ERC20 tokens accidentally sent to the contract's address.
-    pub fn withdraw_other_token(env: Env, other_token_address: Address) {
-        // Implementation
+    pub fn withdraw_other_token(env: Env, caller: Address, other_token_address: Address) {
+        let admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+
+        // Access control check
+        caller.require_auth();
+        if !admins.get(caller.clone()).is_some() {
+            panic!("Not an admin");
+        }
+
+        assert!(
+            other_token_address != Self::get_token_address(env.clone()),
+            "Invalid other token"
+        );
+
+        // let token_dispatcher = ERC20ABIDispatcher { contract_address: other_token_address };
+        // let balance = token_dispatcher.balance_of(get_contract_address());
+        // token_dispatcher.transfer(get_caller_address(), balance);
     }
 
     /// Returns the amount of tokens that are available for the admin to withdraw.
     pub fn amount_to_withdraw_by_admin(env: Env) -> U256 {
-        // Implementation
+        // let token_dispatcher = ERC20ABIDispatcher {
+        //     contract_address: self.token_address.read()
+        // };
+
+        // token_dispatcher.balance_of(get_contract_address())
+        //     - self.tokens_reserved_for_vesting.read()
+
         U256::from_u32(&env, 0)
     }
 
@@ -434,7 +573,7 @@ impl TokenVestingManager {
             .get(&VESTING_BY_ID)
             .unwrap_or(Map::new(&env));
 
-        // This will panic is there is no vesting associated with a given id.
+        // This will panic if there is no vesting associated with a given id.
         vesting_by_id.get(vesting_id).unwrap()
     }
 
