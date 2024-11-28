@@ -66,6 +66,21 @@ pub struct TokenVestingManager;
 
 #[contractimpl]
 impl TokenVestingManager {
+    /// Initialization function.
+    pub fn init(env: Env, factory_caller: Address, token_address: Address) {
+        let mut admins: Map<Address, bool> = env
+            .storage()
+            .persistent()
+            .get(&ADMINS)
+            .unwrap_or(Map::new(&env));
+        admins.set(factory_caller, true);
+        env.storage().persistent().set(&ADMINS, &admins);
+
+        let admin_count: u32 = 1;
+        env.storage().instance().set(&ADMIN_COUNT, &admin_count);
+        env.storage().instance().set(&TOKEN_ADDRESS, &token_address);
+    }
+
     /// Adds a new admin or remove an existing one for the Token Vesting Manager contract.
     pub fn set_admin(env: Env, caller: Address, admin: Address, is_enabled: bool) {
         let mut admins: Map<Address, bool> = env

@@ -23,24 +23,24 @@ pub struct TokenVestingFactory;
 
 #[contractimpl]
 impl TokenVestingFactory {
+    /// Initialization function.
+    pub fn init(env: Env, owner: Address, wasm_hash: BytesN<32>) {
+        env.storage().instance().set(&OWNER, &owner);
+        env.storage().instance().set(&WASM_HASH, &wasm_hash);
+    }
+
     /// Deploys a new TokenVestingManager contract and returns its address.
     pub fn new_token_vesting_manager(
         env: Env,
-        deployer: Address,
         init_args: Vec<Val>,
     ) -> (Address, Val) {
-        // Skip authorization if deployer is the current contract.
-        if deployer != env.current_contract_address() {
-            deployer.require_auth();
-        }
-
         let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
         let salt: BytesN<32> = env.storage().persistent().get(&SALT).unwrap();
 
         // Deploy the contract.
         let deployed_address = env
             .deployer()
-            .with_address(deployer, salt)
+            .with_address(env.current_contract_address(), salt)
             .deploy(wasm_hash);
 
         // Invoke the init function with the given arguments.
