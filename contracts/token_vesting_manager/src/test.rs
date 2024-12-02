@@ -14,6 +14,16 @@ fn deploy_manager_helper(env: &Env) -> (TokenVestingManagerClient, Address, Addr
     (client, admin, token_address)
 }
 
+// fn deploy_token_helper(env: &Env) -> (SacDeployerClient, Address) {
+//     let contract_id = env.register_contract(None, SacDeployer);
+//     let client = SacDeployerClient::new(env, &contract_id);
+
+//     let serialized_asset: Bytes = Bytes::from_array(&env, &[1; 32]);
+//     let token_address = client.deploy_sac(&serialized_asset);
+
+//     (client, token_address)
+// }
+
 #[test]
 #[should_panic]
 fn test_double_initialization() {
@@ -31,10 +41,10 @@ fn test_set_admin() {
 
     let new_admin: Address = Address::generate(&env);
     env.mock_all_auths();
-    client.set_admin(&admin, &new_admin ,&true);
+    client.set_admin(&admin, &new_admin, &true);
     assert!(client.is_admin(&new_admin));
 
-    client.set_admin(&admin, &new_admin ,&false);
+    client.set_admin(&admin, &new_admin, &false);
     assert!(!client.is_admin(&new_admin));
 }
 
@@ -47,7 +57,7 @@ fn test_get_admin_count() {
 
     let new_admin: Address = Address::generate(&env);
     env.mock_all_auths();
-    client.set_admin(&admin, &new_admin ,&true);
+    client.set_admin(&admin, &new_admin, &true);
     assert!(client.get_admins_count() == 2);
 }
 
@@ -61,3 +71,9 @@ fn test_is_admin() {
     let non_admin: Address = Address::generate(&env);
     assert!(!client.is_admin(&non_admin));
 }
+
+// #[test]
+// fn test_deploy_token() {
+//     let env = Env::default();
+//     deploy_token_helper(&env);
+// }

@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, Map, String, Symbol,
-    Val, Vec, U256,
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Bytes, Env, Map, String,
+    Symbol, Val, Vec, U256,
 };
 
 /// Constants for storage keys.
@@ -72,11 +72,7 @@ impl TokenVestingManager {
             panic!("Already initialized");
         }
 
-        let mut admins: Map<Address, bool> = env
-            .storage()
-            .persistent()
-            .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+        let mut admins: Map<Address, bool> = Map::new(&env);
         admins.set(factory_caller, true);
         env.storage().persistent().set(&ADMINS, &admins);
 
@@ -752,3 +748,20 @@ impl TokenVestingManager {
 }
 
 mod test;
+
+/// Contract for deploying an asset contract for testing purpose.
+#[contract]
+pub struct SacDeployer;
+
+#[contractimpl]
+impl SacDeployer {
+    pub fn deploy_sac(env: Env, serialized_asset: Bytes) -> Address {
+        // Create the Deployer with Asset
+        let deployer = env.deployer().with_stellar_asset(serialized_asset);
+        let _ = deployer.deployed_address();
+        // Deploy the Stellar Asset Contract
+        let sac_address = deployer.deploy();
+
+        sac_address
+    }
+}

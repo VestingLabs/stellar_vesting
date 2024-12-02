@@ -101,7 +101,7 @@
                 },
                 "durability": "persistent",
                 "val": {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67"
                 }
               }
             },
@@ -190,7 +190,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAFCT4"
                 },
                 {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000000"
+                  "bytes": "96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67"
                 }
               ]
             }
