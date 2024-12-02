@@ -65,8 +65,7 @@ impl TokenVestingFactory {
         env.events()
             .publish((TOKEN_VESTING_MANAGER_CREATED,), deployed_address.clone());
 
-        // Return the contract ID of the deployed contract and the result of
-        // invoking the init result.
+        // Return the contract ID of the deployed contract and the result data of invoking the `init` result.
         (deployed_address, res)
     }
 
