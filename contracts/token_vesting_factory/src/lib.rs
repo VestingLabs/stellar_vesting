@@ -7,6 +7,8 @@ use soroban_sdk::{contract, contractimpl, symbol_short, Address, BytesN, Env, Sy
 const OWNER: Symbol = symbol_short!("OWNER");
 // Wasm hash of the TokenVestingManager contract.
 const WASM_HASH: Symbol = symbol_short!("WASMHASH");
+// Salt for the TokenVestingManager contract.
+const SALT: Symbol = symbol_short!("SALT");
 
 /// Constants for events.
 
@@ -25,28 +27,40 @@ impl TokenVestingFactory {
             panic!("Already initialized");
         }
 
+        let initial_salt = BytesN::from_array(&env, &[0; 32]);
+
         env.storage().persistent().set(&OWNER, &owner);
         env.storage().persistent().set(&WASM_HASH, &wasm_hash);
+        env.storage().persistent().set(&SALT, &initial_salt);
     }
 
     /// Deploys a new TokenVestingManager contract and returns its address.
-    pub fn new_token_vesting_manager(
-        env: Env,
-        init_args: Vec<Val>,
-        salt: BytesN<32>,
-    ) -> (Address, Val) {
+    pub fn new_token_vesting_manager(env: Env, init_args: Vec<Val>) -> (Address, Val) {
         let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
+
+        let mut salt: [u8; 32] = env.storage().persistent().get(&SALT).unwrap();
+
+        // Increment the salt.
+        for i in (0..32).rev() {
+            if salt[i] != 255 {
+                salt[i] += 1;
+                break;
+            } else {
+                salt[i] = 0;
+            }
+        }
+
+        let new_salt = BytesN::from_array(&env, &salt);
+        env.storage().persistent().set(&SALT, &new_salt);
 
         // Deploy the contract.
         let deployed_address = env
             .deployer()
-            .with_address(env.current_contract_address(), salt)
+            .with_address(env.current_contract_address(), new_salt)
             .deploy(wasm_hash);
 
         // Invoke the init function with the given arguments.
         let res: Val = env.invoke_contract(&deployed_address, &symbol_short!("init"), init_args);
-
-        // self.salt.write(self.salt.read() + 1);
 
         env.events()
             .publish((TOKEN_VESTING_MANAGER_CREATED,), deployed_address.clone());

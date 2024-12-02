@@ -1,7 +1,7 @@
 #![cfg(test)]
 
 use super::*;
-use soroban_sdk::{testutils::Address as TestAddress, BytesN, Env};
+use soroban_sdk::{testutils::Address as TestAddress, BytesN, Env, vec};
 
 #[test]
 #[should_panic]
@@ -18,6 +18,23 @@ fn test_double_initialization() {
     // Panics given that init can only be called once.
     client.init(&owner, &wasm_hash);
 }
+
+// #[test]
+// fn test_deploy_token_vesting_manager_contract_from_factory() {
+//     let env = Env::default();
+//     let contract_id = env.register_contract(None, TokenVestingFactory);
+//     let client = TokenVestingFactoryClient::new(&env, &contract_id);
+
+//     let owner: Address = Address::generate(&env);
+//     let wasm_hash: BytesN<32> = BytesN::from_array(&env, &[0; 32]);
+
+//     client.init(&owner, &wasm_hash);
+
+//     let factory_caller = Address::generate(&env);
+//     let token_address = Address::generate(&env);
+
+//     client.new_token_vesting_manager(&vec![&env, factory_caller.to_val(), token_address.to_val()]);
+// }
 
 #[test]
 fn test_update_owner() {
