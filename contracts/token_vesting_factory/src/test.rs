@@ -9,7 +9,7 @@ mod token_vesting_manager {
 }
 
 use super::*;
-use soroban_sdk::{testutils::Address as TestAddress, vec, BytesN, bytesn, Env};
+use soroban_sdk::{bytesn, testutils::Address as TestAddress, vec, BytesN, Env};
 
 #[test]
 #[should_panic]
@@ -35,7 +35,10 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
 
     let owner: Address = Address::generate(&env);
     // This is the Wasm hash of the Token Vesting Manager contract.
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
@@ -54,7 +57,10 @@ fn test_update_owner() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
@@ -76,7 +82,10 @@ fn test_update_owner_with_same_address() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
@@ -94,7 +103,10 @@ fn test_get_owner() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
@@ -108,11 +120,17 @@ fn test_update_wasm_hash() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
-    let new_wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec68);
+    let new_wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec68
+    );
 
     // Mocks calls to `require_auth`.
     env.mock_all_auths();
@@ -130,7 +148,10 @@ fn test_update_wasm_hash_with_same_hash() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
@@ -148,7 +169,10 @@ fn test_get_vesting_manager_wasm_hash() {
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
     let owner: Address = Address::generate(&env);
-    let wasm_hash: BytesN<32> = bytesn!(&env, 0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67);
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+    );
 
     client.init(&owner, &wasm_hash);
 
