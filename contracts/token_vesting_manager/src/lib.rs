@@ -320,7 +320,7 @@ impl TokenVestingManager {
         for i in 0..length {
             vesting_ids.insert(
                 i,
-                Self::create_vesting(
+                Self::create_vesting_internal(
                     env.clone(),
                     caller.clone(),
                     create_vesting_batch_params.recipients.get(i).unwrap(),
@@ -382,7 +382,7 @@ impl TokenVestingManager {
             .persistent()
             .set(&VESTING_BY_ID, &vesting_by_id);
 
-        let reserved_tokens = env
+        let reserved_tokens: i128 = env
             .storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
@@ -403,7 +403,12 @@ impl TokenVestingManager {
         let _: Val = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "transfer"),
-            vec![&env, caller.to_val(), claimable.into_val(&env)],
+            vec![
+                &env,
+                env.current_contract_address().to_val(),
+                caller.to_val(),
+                claimable.into_val(&env),
+            ],
         );
     }
 
@@ -551,7 +556,12 @@ impl TokenVestingManager {
         let _: Val = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "transfer"),
-            vec![&env, caller.to_val(), amount_requested.into_val(&env)],
+            vec![
+                &env,
+                env.current_contract_address().to_val(),
+                caller.to_val(),
+                amount_requested.into_val(&env),
+            ],
         );
     }
 
@@ -583,7 +593,12 @@ impl TokenVestingManager {
         let _: Val = env.invoke_contract(
             &other_token_address,
             &Symbol::new(&env, "transfer"),
-            vec![&env, caller.to_val(), balance],
+            vec![
+                &env,
+                env.current_contract_address().to_val(),
+                caller.to_val(),
+                balance,
+            ],
         );
     }
 
@@ -716,6 +731,145 @@ impl TokenVestingManager {
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0)
+    }
+
+    /// Internal version of `create_vesting`, used for `create_vesting_batch`.
+    /// Same but without authentication, required to make `create_vesting_batch` work properly.
+    ///
+    /// Creates a vesting schedule for a recipient and returns a vesting ID.
+    fn create_vesting_internal(
+        env: Env,
+        caller: Address,
+        recipient: Address,
+        start_timestamp: u64,
+        end_timestamp: u64,
+        timelock: u64,
+        initial_unlock: i128,
+        cliff_release_timestamp: u64,
+        cliff_amount: i128,
+        release_interval_secs: u64,
+        linear_vest_amount: i128,
+    ) -> U256 {
+        assert!(
+            linear_vest_amount + cliff_amount != 0,
+            "Invalid vested amount"
+        );
+        assert!(
+            start_timestamp != 0 && start_timestamp < end_timestamp,
+            "Invalid start timestamp"
+        );
+        assert!(release_interval_secs != 0, "Invalid release interval");
+
+        if cliff_release_timestamp == 0 {
+            assert!(cliff_amount == 0, "invalid cliff amount");
+            assert!(
+                (end_timestamp - start_timestamp) % release_interval_secs == 0,
+                "Invalid interval length"
+            );
+        } else {
+            assert!(cliff_amount != 0, "Invalid cliff amount");
+            assert!(
+                start_timestamp <= cliff_release_timestamp
+                    && cliff_release_timestamp < end_timestamp,
+                "Invalid cliff release"
+            );
+            assert!(
+                (end_timestamp - cliff_release_timestamp) % release_interval_secs == 0,
+                "Invalid interval length"
+            );
+        }
+
+        let total_expected_amount = initial_unlock + cliff_amount + linear_vest_amount;
+
+        let reserved_tokens = env
+            .storage()
+            .persistent()
+            .get(&TOKENS_RESERVED_FOR_VESTING)
+            .unwrap_or(0_i128)
+            + total_expected_amount;
+
+        env.storage()
+            .persistent()
+            .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
+
+        let vesting: Vesting = Vesting {
+            recipient: recipient.clone(),
+            start_timestamp,
+            end_timestamp,
+            deactivation_timestamp: 0,
+            timelock,
+            release_interval_secs,
+            cliff_release_timestamp,
+            initial_unlock,
+            cliff_amount,
+            linear_vest_amount,
+            claimed_amount: 0,
+        };
+
+        let vesting_id: U256 = env
+            .storage()
+            .persistent()
+            .get(&NONCE)
+            .unwrap_or(U256::from_u32(&env, 0));
+        let new_vesting_id: U256 = vesting_id.add(&U256::from_u32(&env, 1));
+        env.storage().persistent().set(&NONCE, &new_vesting_id);
+
+        if !Self::is_recipient(env.clone(), recipient.clone()) {
+            let mut recipients: Vec<Address> = env
+                .storage()
+                .persistent()
+                .get(&RECIPIENTS)
+                .unwrap_or(Vec::new(&env));
+
+            recipients.insert(recipients.len(), recipient.clone());
+            env.storage().persistent().set(&RECIPIENTS, &recipients);
+        }
+
+        let mut vesting_by_id: Map<U256, Vesting> = env
+            .storage()
+            .persistent()
+            .get(&VESTING_BY_ID)
+            .unwrap_or(Map::new(&env));
+
+        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        env.storage()
+            .persistent()
+            .set(&VESTING_BY_ID, &vesting_by_id);
+
+        let mut recipient_vestings: Map<Address, Vec<U256>> = env
+            .storage()
+            .persistent()
+            .get(&RECIPIENT_VESTINGS)
+            .unwrap_or(Map::new(&env));
+
+        let mut recipient_ids: Vec<U256> = recipient_vestings
+            .get(recipient.clone())
+            .unwrap_or(Vec::new(&env));
+        recipient_ids.insert(recipient_ids.len(), vesting_id.clone());
+        recipient_vestings.set(recipient.clone(), recipient_ids);
+
+        env.storage()
+            .persistent()
+            .set(&RECIPIENT_VESTINGS, &recipient_vestings);
+
+        env.events()
+            .publish((VESTING_CREATED,), (vesting_id.clone(), recipient, vesting));
+
+        let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
+
+        let _: Val = env.invoke_contract(
+            &token_address,
+            &Symbol::new(&env, "transfer_from"),
+            vec![
+                &env,
+                env.current_contract_address().to_val(),
+                caller.to_val(),
+                env.current_contract_address().to_val(),
+                total_expected_amount.into_val(&env),
+            ],
+        );
+
+        vesting_id
     }
 }
 

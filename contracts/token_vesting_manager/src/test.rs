@@ -1,6 +1,7 @@
 #![cfg(test)]
 
 use super::*;
+use soroban_sdk::testutils::Ledger;
 use soroban_sdk::token::StellarAssetClient;
 use soroban_sdk::token::TokenClient;
 use soroban_sdk::{testutils::Address as TestAddress, Env};
@@ -921,4 +922,487 @@ fn test_create_vesting_recipient_multiple_vestings() {
         "Invalid linear vest amount"
     );
     assert_eq!(vesting_2.claimed_amount, 0, "Invalid claimed amount");
+}
+
+#[test]
+fn test_create_vesting_batch() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipients = vec![
+        &env,
+        Address::generate(&env),
+        Address::generate(&env),
+        Address::generate(&env),
+    ];
+    let start_timestamps = vec![&env, 1000, 2000, 3000];
+    let end_timestamps = vec![&env, 2000, 3000, 4000];
+    let timelocks = vec![&env, 1000, 2000, 3000];
+    let release_interval_secs = vec![&env, 10, 10, 10];
+    let cliff_release_timestamps = vec![&env, 1000, 2000, 3000];
+    let initial_unlocks = vec![&env, 1000, 2000, 3000];
+    let cliff_amounts = vec![&env, 1000, 2000, 3000];
+    let linear_vest_amounts = vec![&env, 1000, 2000, 3000];
+
+    // Calculate total_expected_amount correctly
+    let mut total_expected_amount: i128 = 0;
+    for i in 0..recipients.len() {
+        let initial_unlock = initial_unlocks.get(i).unwrap();
+        let cliff_amount = cliff_amounts.get(i).unwrap();
+        let linear_vest_amount = linear_vest_amounts.get(i).unwrap();
+
+        total_expected_amount += initial_unlock + cliff_amount + linear_vest_amount;
+    }
+
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    // Create vesting params and call create_vesting_batch
+    let vesting_params = CreateVestingBatchParams {
+        recipients,
+        start_timestamps,
+        end_timestamps,
+        timelocks,
+        initial_unlocks,
+        cliff_release_timestamps,
+        cliff_amounts,
+        release_interval_secs,
+        linear_vest_amounts,
+    };
+
+    // Call the function to create the vesting batch
+    client.create_vesting_batch(&admin, &vesting_params);
+}
+
+#[test]
+fn test_claim() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = 0;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 0;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp + 500);
+
+    client.claim(&recipient, &vesting_id);
+    assert_eq!(token_client.balance(&recipient), 1500);
+}
+
+#[test]
+fn test_claim_fully_vested() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = 0;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 0;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp + 1000);
+
+    client.claim(&recipient, &vesting_id);
+    assert_eq!(token_client.balance(&recipient), 2000);
+}
+
+#[test]
+fn test_claim_initial_unlock() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = 0;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 0;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp);
+
+    client.claim(&recipient, &vesting_id);
+    assert_eq!(token_client.balance(&recipient), 1000);
+}
+
+#[test]
+#[should_panic]
+fn test_claim_initial_unlock_before_start() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = 0;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 0;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp - 1);
+
+    client.claim(&recipient, &vesting_id);
+}
+
+#[test]
+#[should_panic]
+fn test_claim_not_recipient() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = 0;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 0;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp + 500);
+
+    let non_recipient_claimer: Address = Address::generate(&env);
+    client.claim(&non_recipient_claimer, &vesting_id);
+}
+
+#[test]
+fn test_claim_initial_unlock_and_cliff_amount() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = 0;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = start_timestamp + 500;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 1000;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(cliff_release_timestamp);
+
+    client.claim(&recipient, &vesting_id);
+    assert_eq!(token_client.balance(&recipient), 2000);
+}
+
+#[test]
+#[should_panic]
+fn test_claim_before_timelock() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = start_timestamp + 500;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = start_timestamp + 500;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 1000;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(timelock - 1);
+
+    client.claim(&recipient, &vesting_id);
+}
+
+#[test]
+#[should_panic]
+fn test_claim_zero_claimable() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp + 1000;
+    let timelock: u64 = start_timestamp + 500;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = start_timestamp + 500;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 1000;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(start_timestamp);
+
+    client.claim(&recipient, &vesting_id);
+}
+
+#[test]
+#[should_panic]
+fn test_claim_zero_duration() {
+    let env = Env::default();
+    let (client, admin, token_client, token_admin_client, _) = deploy_manager_helper(&env);
+
+    let recipient: Address = Address::generate(&env);
+    let start_timestamp: u64 = 1000;
+    let end_timestamp: u64 = start_timestamp;
+    let timelock: u64 = start_timestamp + 500;
+    let release_interval_secs: u64 = 10;
+    let cliff_release_timestamp: u64 = start_timestamp + 500;
+    let initial_unlock: i128 = 1000;
+    let cliff_amount: i128 = 1000;
+    let linear_vest_amount: i128 = 1000;
+
+    let total_expected_amount: i128 = initial_unlock + cliff_amount + linear_vest_amount;
+    let expiration_ledger: u32 = 6300000;
+
+    // Mock the admin.
+    env.mock_all_auths();
+    token_admin_client.mint(&admin, &total_expected_amount);
+    token_client.approve(
+        &admin,
+        &client.address,
+        &total_expected_amount,
+        &expiration_ledger,
+    );
+
+    let vesting_id: U256 = client.create_vesting(
+        &admin,
+        &recipient,
+        &start_timestamp,
+        &end_timestamp,
+        &timelock,
+        &initial_unlock,
+        &cliff_release_timestamp,
+        &cliff_amount,
+        &release_interval_secs,
+        &linear_vest_amount,
+    );
+
+    env.ledger().set_timestamp(end_timestamp + 1);
+
+    client.claim(&recipient, &vesting_id);
 }
