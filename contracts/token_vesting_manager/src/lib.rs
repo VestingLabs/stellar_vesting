@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, Address, Bytes, Env, Map, String,
-    Symbol, Val, Vec, U256,
+    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Map, Symbol,
+    Val, Vec, U256,
 };
 
 /// Constants for storage keys.
@@ -41,10 +41,10 @@ pub struct Vesting {
     pub timelock: u64,
     pub release_interval_secs: u64,
     pub cliff_release_timestamp: u64,
-    pub initial_unlock: U256,
-    pub cliff_amount: U256,
-    pub linear_vest_amount: U256,
-    pub claimed_amount: U256,
+    pub initial_unlock: i128,
+    pub cliff_amount: i128,
+    pub linear_vest_amount: i128,
+    pub claimed_amount: i128,
 }
 
 #[contracttype]
@@ -54,11 +54,11 @@ pub struct CreateVestingBatchParams {
     pub start_timestamps: Vec<u64>,
     pub end_timestamps: Vec<u64>,
     pub timelocks: Vec<u64>,
-    pub initial_unlocks: Vec<U256>,
+    pub initial_unlocks: Vec<i128>,
     pub cliff_release_timestamps: Vec<u64>,
-    pub cliff_amounts: Vec<U256>,
+    pub cliff_amounts: Vec<i128>,
     pub release_interval_secs: Vec<u64>,
-    pub linear_vest_amounts: Vec<U256>,
+    pub linear_vest_amounts: Vec<i128>,
 }
 
 #[contract]
@@ -148,17 +148,13 @@ impl TokenVestingManager {
         start_timestamp: u64,
         end_timestamp: u64,
         timelock: u64,
-        initial_unlock: U256,
+        initial_unlock: i128,
         cliff_release_timestamp: u64,
-        cliff_amount: U256,
+        cliff_amount: i128,
         release_interval_secs: u64,
-        linear_vest_amount: U256,
+        linear_vest_amount: i128,
     ) -> U256 {
-        let admins: Map<Address, bool> = env
-            .storage()
-            .persistent()
-            .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+        let admins: Map<Address, bool> = env.storage().persistent().get(&ADMINS).unwrap();
 
         // Access control check
         caller.require_auth();
@@ -167,7 +163,7 @@ impl TokenVestingManager {
         }
 
         assert!(
-            linear_vest_amount.add(&cliff_amount) != U256::from_u32(&env, 0),
+            linear_vest_amount + cliff_amount != 0,
             "Invalid vested amount"
         );
         assert!(
@@ -177,19 +173,13 @@ impl TokenVestingManager {
         assert!(release_interval_secs != 0, "Invalid release interval");
 
         if cliff_release_timestamp == 0 {
-            assert!(
-                cliff_amount == U256::from_u32(&env, 0),
-                "invalid cliff amount"
-            );
+            assert!(cliff_amount == 0, "invalid cliff amount");
             assert!(
                 (end_timestamp - start_timestamp) % release_interval_secs == 0,
                 "Invalid interval length"
             );
         } else {
-            assert!(
-                cliff_amount != U256::from_u32(&env, 0),
-                "Invalid cliff amount"
-            );
+            assert!(cliff_amount != 0, "Invalid cliff amount");
             assert!(
                 start_timestamp <= cliff_release_timestamp
                     && cliff_release_timestamp < end_timestamp,
@@ -201,14 +191,14 @@ impl TokenVestingManager {
             );
         }
 
-        let total_expected_amount = initial_unlock.add(&cliff_amount).add(&linear_vest_amount);
+        let total_expected_amount = initial_unlock + cliff_amount + linear_vest_amount;
 
         let reserved_tokens = env
             .storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
-            .unwrap_or(U256::from_u32(&env, 0))
-            .add(&total_expected_amount);
+            .unwrap_or(0_i128)
+            + total_expected_amount;
 
         env.storage()
             .persistent()
@@ -225,7 +215,7 @@ impl TokenVestingManager {
             initial_unlock,
             cliff_amount,
             linear_vest_amount,
-            claimed_amount: U256::from_u32(&env, 0),
+            claimed_amount: 0,
         };
 
         let vesting_id: U256 = env
@@ -258,13 +248,18 @@ impl TokenVestingManager {
             .persistent()
             .set(&VESTING_BY_ID, &vesting_by_id);
 
-        let mut recipient_vestings: Vec<U256> = env
+        let mut recipient_vestings: Map<Address, Vec<U256>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Vec::new(&env));
+            .unwrap_or(Map::new(&env));
 
-        recipient_vestings.insert(recipient_vestings.len(), vesting_id.clone());
+        let mut recipient_ids: Vec<U256> = recipient_vestings
+            .get(recipient.clone())
+            .unwrap_or(Vec::new(&env));
+        recipient_ids.insert(recipient_ids.len(), vesting_id.clone());
+        recipient_vestings.set(recipient.clone(), recipient_ids);
+
         env.storage()
             .persistent()
             .set(&RECIPIENT_VESTINGS, &recipient_vestings);
@@ -272,20 +267,17 @@ impl TokenVestingManager {
         env.events()
             .publish((VESTING_CREATED,), (vesting_id.clone(), recipient, vesting));
 
-        let token_address: Address = env
-            .storage()
-            .persistent()
-            .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+        let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
         let _: Val = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "transfer_from"),
             vec![
                 &env,
+                env.current_contract_address().to_val(),
                 caller.to_val(),
                 env.current_contract_address().to_val(),
-                total_expected_amount.to_val(),
+                total_expected_amount.into_val(&env),
             ],
         );
 
@@ -373,14 +365,11 @@ impl TokenVestingManager {
 
         let vest_amount =
             Self::calculate_vested_amount(env.clone(), vesting.clone(), env.ledger().timestamp());
-        let claimable = vest_amount.sub(&vesting.claimed_amount);
+        let claimable = vest_amount - vesting.claimed_amount;
 
-        assert!(
-            claimable != U256::from_u32(&env, 0),
-            "Insufficient balance to claim"
-        );
+        assert!(claimable != 0, "Insufficient balance to claim");
 
-        vesting.claimed_amount = vesting.claimed_amount.add(&claimable);
+        vesting.claimed_amount = vesting.claimed_amount + claimable;
 
         let mut vesting_by_id: Map<U256, Vesting> = env
             .storage()
@@ -397,8 +386,8 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
-            .unwrap_or(U256::from_u32(&env, 0))
-            .sub(&claimable);
+            .unwrap_or(0)
+            - claimable;
 
         env.storage()
             .persistent()
@@ -409,16 +398,12 @@ impl TokenVestingManager {
             (vesting_id.clone(), caller.clone(), claimable.clone()),
         );
 
-        let token_address: Address = env
-            .storage()
-            .persistent()
-            .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+        let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
         let _: Val = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "transfer"),
-            vec![&env, caller.to_val(), claimable.to_val()],
+            vec![&env, caller.to_val(), claimable.into_val(&env)],
         );
     }
 
@@ -461,14 +446,14 @@ impl TokenVestingManager {
 
         let vested_amount_now =
             Self::calculate_vested_amount(env.clone(), vesting.clone(), env.ledger().timestamp());
-        let amount_remaining = final_vest_amount.sub(&vested_amount_now);
+        let amount_remaining = final_vest_amount - vested_amount_now;
 
         let reserved_tokens = env
             .storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
-            .unwrap_or(U256::from_u32(&env, 0))
-            .sub(&amount_remaining);
+            .unwrap_or(0)
+            - amount_remaining;
 
         env.storage()
             .persistent()
@@ -486,7 +471,7 @@ impl TokenVestingManager {
     }
 
     /// Calculates the vested amount for a given Vesting, at a given timestamp.
-    pub fn calculate_vested_amount(env: Env, vesting: Vesting, reference_timestamp: u64) -> U256 {
+    pub fn calculate_vested_amount(_env: Env, vesting: Vesting, reference_timestamp: u64) -> i128 {
         let mut adjusted_reference_timestamp = reference_timestamp;
 
         if vesting.deactivation_timestamp != 0
@@ -495,20 +480,18 @@ impl TokenVestingManager {
             adjusted_reference_timestamp = vesting.deactivation_timestamp;
         }
 
-        let mut vesting_amount: U256 = U256::from_u32(&env, 0);
+        let mut vesting_amount: i128 = 0;
 
         if adjusted_reference_timestamp >= vesting.end_timestamp {
             adjusted_reference_timestamp = vesting.end_timestamp;
         }
 
         if adjusted_reference_timestamp >= vesting.cliff_release_timestamp {
-            vesting_amount = vesting_amount.add(&vesting.cliff_amount);
+            vesting_amount = vesting_amount + vesting.cliff_amount;
         }
 
-        if vesting.initial_unlock > U256::from_u32(&env, 0)
-            && reference_timestamp >= vesting.start_timestamp
-        {
-            vesting_amount = vesting_amount.add(&vesting.initial_unlock);
+        if vesting.initial_unlock > 0 && reference_timestamp >= vesting.start_timestamp {
+            vesting_amount = vesting_amount + vesting.initial_unlock;
         }
 
         let start_timestamp: u64;
@@ -525,24 +508,24 @@ impl TokenVestingManager {
                 / vesting.release_interval_secs)
                 * vesting.release_interval_secs;
 
-            let final_vesting_duration_secs = vesting.end_timestamp - start_timestamp;
+            let final_vesting_duration_secs: i128 =
+                (vesting.end_timestamp - start_timestamp).into();
 
-            let linear_vest_amount = vesting
-                .linear_vest_amount
-                .mul(&U256::from_u128(
-                    &env,
-                    truncated_current_vesting_duration_secs.into(),
-                ))
-                .div(&U256::from_u128(&env, final_vesting_duration_secs.into()));
+            let truncated_current_vesting_duration_secs: i128 =
+                truncated_current_vesting_duration_secs.into();
 
-            vesting_amount = vesting_amount.add(&linear_vest_amount);
+            let linear_vest_amount: i128 = (vesting.linear_vest_amount
+                * truncated_current_vesting_duration_secs)
+                / final_vesting_duration_secs;
+
+            vesting_amount = vesting_amount + linear_vest_amount;
         }
 
         vesting_amount
     }
 
     /// Allows the admin to withdraw ERC20 tokens not locked in vesting.
-    pub fn withdraw_admin(env: Env, caller: Address, amount_requested: U256) {
+    pub fn withdraw_admin(env: Env, caller: Address, amount_requested: i128) {
         let admins: Map<Address, bool> = env
             .storage()
             .persistent()
@@ -563,16 +546,12 @@ impl TokenVestingManager {
             (caller.clone(), amount_requested.clone()),
         );
 
-        let token_address: Address = env
-            .storage()
-            .persistent()
-            .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+        let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
         let _: Val = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "transfer"),
-            vec![&env, caller.to_val(), amount_requested.to_val()],
+            vec![&env, caller.to_val(), amount_requested.into_val(&env)],
         );
     }
 
@@ -609,26 +588,22 @@ impl TokenVestingManager {
     }
 
     /// Returns the amount of tokens that are available for the admin to withdraw.
-    pub fn amount_to_withdraw_by_admin(env: Env) -> U256 {
-        let token_address: Address = env
-            .storage()
-            .persistent()
-            .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")));
+    pub fn amount_to_withdraw_by_admin(env: Env) -> i128 {
+        let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
-        let balance: U256 = env.invoke_contract(
+        let balance: i128 = env.invoke_contract(
             &token_address,
             &Symbol::new(&env, "balance"),
             vec![&env, env.current_contract_address().to_val()],
         );
 
-        let reserved_tokens = env
+        let reserved_tokens: i128 = env
             .storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
-            .unwrap_or(U256::from_u32(&env, 0));
+            .unwrap_or(0);
 
-        balance.sub(&reserved_tokens)
+        balance - reserved_tokens
     }
 
     /// Retrieves information about a specific vesting arrangement.
@@ -732,36 +707,16 @@ impl TokenVestingManager {
 
     /// Returns the address of the token used in the vesting contract.
     pub fn get_token_address(env: Env) -> Address {
-        env.storage()
-            .persistent()
-            .get(&TOKEN_ADDRESS)
-            .unwrap_or(Address::from_string(&String::from_str(&env, "0")))
+        env.storage().persistent().get(&TOKEN_ADDRESS).unwrap()
     }
 
     /// Returns the amount of token reserved for vesting in the contract.
-    pub fn get_tokens_reserved_for_vesting(env: Env) -> U256 {
+    pub fn get_tokens_reserved_for_vesting(env: Env) -> i128 {
         env.storage()
             .persistent()
             .get(&TOKENS_RESERVED_FOR_VESTING)
-            .unwrap_or(U256::from_u32(&env, 0))
+            .unwrap_or(0)
     }
 }
 
 mod test;
-
-/// Contract for deploying an asset contract for testing purpose.
-#[contract]
-pub struct SacDeployer;
-
-#[contractimpl]
-impl SacDeployer {
-    pub fn deploy_sac(env: Env, serialized_asset: Bytes) -> Address {
-        // Create the Deployer with Asset
-        let deployer = env.deployer().with_stellar_asset(serialized_asset);
-        let _ = deployer.deployed_address();
-        // Deploy the Stellar Asset Contract
-        let sac_address = deployer.deploy();
-
-        sac_address
-    }
-}
