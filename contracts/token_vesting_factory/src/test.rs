@@ -37,7 +37,7 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
     // This is the Wasm hash of the Token Vesting Manager contract.
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
@@ -59,7 +59,7 @@ fn test_update_owner() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
@@ -84,7 +84,7 @@ fn test_update_owner_with_same_address() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
@@ -105,7 +105,7 @@ fn test_get_owner() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
@@ -122,14 +122,14 @@ fn test_update_wasm_hash() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
 
     let new_wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec68
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c61
     );
 
     // Mocks calls to `require_auth`.
@@ -150,7 +150,7 @@ fn test_update_wasm_hash_with_same_hash() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);
@@ -171,7 +171,7 @@ fn test_get_vesting_manager_wasm_hash() {
     let owner: Address = Address::generate(&env);
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x96635e6e7c94d42c02a543e1ee4110ad83b91f451905ebb6ab1b6cec8b43ec67
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
     );
 
     client.init(&owner, &wasm_hash);

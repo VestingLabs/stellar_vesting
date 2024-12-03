@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
     contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Map, Symbol,
-    Val, Vec, U256,
+    Val, Vec,
 };
 
 /// Constants for storage keys.
@@ -153,7 +153,7 @@ impl TokenVestingManager {
         cliff_amount: i128,
         release_interval_secs: u64,
         linear_vest_amount: i128,
-    ) -> U256 {
+    ) -> u64 {
         let admins: Map<Address, bool> = env.storage().persistent().get(&ADMINS).unwrap();
 
         // Access control check
@@ -218,12 +218,8 @@ impl TokenVestingManager {
             claimed_amount: 0,
         };
 
-        let vesting_id: U256 = env
-            .storage()
-            .persistent()
-            .get(&NONCE)
-            .unwrap_or(U256::from_u32(&env, 0));
-        let new_vesting_id: U256 = vesting_id.add(&U256::from_u32(&env, 1));
+        let vesting_id: u64 = env.storage().persistent().get(&NONCE).unwrap_or(0);
+        let new_vesting_id: u64 = vesting_id + 1;
         env.storage().persistent().set(&NONCE, &new_vesting_id);
 
         if !Self::is_recipient(env.clone(), recipient.clone()) {
@@ -237,27 +233,27 @@ impl TokenVestingManager {
             env.storage().persistent().set(&RECIPIENTS, &recipients);
         }
 
-        let mut vesting_by_id: Map<U256, Vesting> = env
+        let mut vesting_by_id: Map<u64, Vesting> = env
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
             .unwrap_or(Map::new(&env));
 
-        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        vesting_by_id.set(vesting_id, vesting.clone());
         env.storage()
             .persistent()
             .set(&VESTING_BY_ID, &vesting_by_id);
 
-        let mut recipient_vestings: Map<Address, Vec<U256>> = env
+        let mut recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
             .unwrap_or(Map::new(&env));
 
-        let mut recipient_ids: Vec<U256> = recipient_vestings
+        let mut recipient_ids: Vec<u64> = recipient_vestings
             .get(recipient.clone())
             .unwrap_or(Vec::new(&env));
-        recipient_ids.insert(recipient_ids.len(), vesting_id.clone());
+        recipient_ids.insert(recipient_ids.len(), vesting_id);
         recipient_vestings.set(recipient.clone(), recipient_ids);
 
         env.storage()
@@ -289,7 +285,7 @@ impl TokenVestingManager {
         env: Env,
         caller: Address,
         create_vesting_batch_params: CreateVestingBatchParams,
-    ) -> Vec<U256> {
+    ) -> Vec<u64> {
         let admins: Map<Address, bool> = env
             .storage()
             .persistent()
@@ -315,7 +311,7 @@ impl TokenVestingManager {
             "Array length mismatch"
         );
 
-        let mut vesting_ids: Vec<U256> = Vec::new(&env);
+        let mut vesting_ids: Vec<u64> = Vec::new(&env);
 
         for i in 0..length {
             vesting_ids.insert(
@@ -349,7 +345,7 @@ impl TokenVestingManager {
     }
 
     /// Allows a recipient to claim their vested tokens.
-    pub fn claim(env: Env, caller: Address, vesting_id: U256) {
+    pub fn claim(env: Env, caller: Address, vesting_id: u64) {
         let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
 
         // Access control check
@@ -371,13 +367,13 @@ impl TokenVestingManager {
 
         vesting.claimed_amount = vesting.claimed_amount + claimable;
 
-        let mut vesting_by_id: Map<U256, Vesting> = env
+        let mut vesting_by_id: Map<u64, Vesting> = env
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
             .unwrap_or(Map::new(&env));
 
-        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        vesting_by_id.set(vesting_id, vesting.clone());
         env.storage()
             .persistent()
             .set(&VESTING_BY_ID, &vesting_by_id);
@@ -413,7 +409,7 @@ impl TokenVestingManager {
     }
 
     /// Revokes a vesting arrangement before it has been fully claimed.
-    pub fn revoke_vesting(env: Env, caller: Address, vesting_id: U256) {
+    pub fn revoke_vesting(env: Env, caller: Address, vesting_id: u64) {
         let admins: Map<Address, bool> = env
             .storage()
             .persistent()
@@ -426,7 +422,7 @@ impl TokenVestingManager {
             panic!("Not an admin");
         }
 
-        let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
+        let mut vesting = Self::get_vesting_info(env.clone(), vesting_id);
         assert!(vesting.deactivation_timestamp == 0, "Vesting not active");
 
         let final_vest_amount =
@@ -438,7 +434,7 @@ impl TokenVestingManager {
 
         vesting.deactivation_timestamp = env.ledger().timestamp();
 
-        let mut vesting_by_id: Map<U256, Vesting> = env
+        let mut vesting_by_id: Map<u64, Vesting> = env
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
@@ -622,8 +618,8 @@ impl TokenVestingManager {
     }
 
     /// Retrieves information about a specific vesting arrangement.
-    pub fn get_vesting_info(env: Env, vesting_id: U256) -> Vesting {
-        let vesting_by_id: Map<U256, Vesting> = env
+    pub fn get_vesting_info(env: Env, vesting_id: u64) -> Vesting {
+        let vesting_by_id: Map<u64, Vesting> = env
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
@@ -664,8 +660,8 @@ impl TokenVestingManager {
     }
 
     /// Returns the list of vestings for the recipient.
-    pub fn get_all_recipient_vestings(env: Env, recipient: Address) -> Vec<U256> {
-        let recipient_vestings: Map<Address, Vec<U256>> = env
+    pub fn get_all_recipient_vestings(env: Env, recipient: Address) -> Vec<u64> {
+        let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
@@ -681,21 +677,21 @@ impl TokenVestingManager {
         from: u32,
         to: u32,
         recipient: Address,
-    ) -> Vec<U256> {
-        let recipient_vestings: Map<Address, Vec<U256>> = env
+    ) -> Vec<u64> {
+        let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
             .unwrap_or(Map::new(&env));
 
-        let vestings: Vec<U256> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
+        let vestings: Vec<u64> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
 
         vestings.slice(from..to)
     }
 
     /// Returns the length of all vestings for the recipient.
     pub fn get_all_recipient_vestings_len(env: Env, recipient: Address) -> u32 {
-        let recipient_vestings: Map<Address, Vec<U256>> = env
+        let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
@@ -709,13 +705,13 @@ impl TokenVestingManager {
 
     /// Checks if a given address is a recipient of any vesting schedule.
     pub fn is_recipient(env: Env, recipient: Address) -> bool {
-        let recipient_vestings: Map<Address, Vec<U256>> = env
+        let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
             .unwrap_or(Map::new(&env));
 
-        let recipient_ids: Vec<U256> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
+        let recipient_ids: Vec<u64> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
 
         recipient_ids.len() != 0
     }
@@ -749,7 +745,7 @@ impl TokenVestingManager {
         cliff_amount: i128,
         release_interval_secs: u64,
         linear_vest_amount: i128,
-    ) -> U256 {
+    ) -> u64 {
         assert!(
             linear_vest_amount + cliff_amount != 0,
             "Invalid vested amount"
@@ -806,12 +802,8 @@ impl TokenVestingManager {
             claimed_amount: 0,
         };
 
-        let vesting_id: U256 = env
-            .storage()
-            .persistent()
-            .get(&NONCE)
-            .unwrap_or(U256::from_u32(&env, 0));
-        let new_vesting_id: U256 = vesting_id.add(&U256::from_u32(&env, 1));
+        let vesting_id: u64 = env.storage().persistent().get(&NONCE).unwrap_or(0);
+        let new_vesting_id: u64 = vesting_id + 1;
         env.storage().persistent().set(&NONCE, &new_vesting_id);
 
         if !Self::is_recipient(env.clone(), recipient.clone()) {
@@ -825,27 +817,27 @@ impl TokenVestingManager {
             env.storage().persistent().set(&RECIPIENTS, &recipients);
         }
 
-        let mut vesting_by_id: Map<U256, Vesting> = env
+        let mut vesting_by_id: Map<u64, Vesting> = env
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
             .unwrap_or(Map::new(&env));
 
-        vesting_by_id.set(vesting_id.clone(), vesting.clone());
+        vesting_by_id.set(vesting_id, vesting.clone());
         env.storage()
             .persistent()
             .set(&VESTING_BY_ID, &vesting_by_id);
 
-        let mut recipient_vestings: Map<Address, Vec<U256>> = env
+        let mut recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
             .unwrap_or(Map::new(&env));
 
-        let mut recipient_ids: Vec<U256> = recipient_vestings
+        let mut recipient_ids: Vec<u64> = recipient_vestings
             .get(recipient.clone())
             .unwrap_or(Vec::new(&env));
-        recipient_ids.insert(recipient_ids.len(), vesting_id.clone());
+        recipient_ids.insert(recipient_ids.len(), vesting_id);
         recipient_vestings.set(recipient.clone(), recipient_ids);
 
         env.storage()
