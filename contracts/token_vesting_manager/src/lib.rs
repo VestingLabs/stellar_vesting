@@ -516,9 +516,8 @@ impl TokenVestingManager {
                 truncated_current_vesting_duration_secs.into();
 
             let linear_vest_amount: i128 = (vesting.linear_vest_amount
-                * truncated_current_vesting_duration_secs)
-                / final_vesting_duration_secs;
-
+                / final_vesting_duration_secs)
+                * truncated_current_vesting_duration_secs;
             vesting_amount = vesting_amount + linear_vest_amount;
         }
 
