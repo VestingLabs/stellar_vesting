@@ -92,10 +92,7 @@ impl TokenVestingManager {
             .unwrap_or(Map::new(&env));
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         assert!(
             admins.get(admin.clone()).unwrap_or(!is_enabled) != is_enabled,
@@ -157,10 +154,7 @@ impl TokenVestingManager {
         let admins: Map<Address, bool> = env.storage().persistent().get(&ADMINS).unwrap();
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         assert!(
             linear_vest_amount + cliff_amount != 0,
@@ -293,10 +287,7 @@ impl TokenVestingManager {
             .unwrap_or(Map::new(&env));
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         let length: u32 = create_vesting_batch_params.recipients.len();
         assert!(
@@ -417,10 +408,7 @@ impl TokenVestingManager {
             .unwrap_or(Map::new(&env));
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         let mut vesting = Self::get_vesting_info(env.clone(), vesting_id);
         assert!(vesting.deactivation_timestamp == 0, "Vesting not active");
@@ -534,10 +522,7 @@ impl TokenVestingManager {
             .unwrap_or(Map::new(&env));
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         let amount_remaining = Self::amount_to_withdraw_by_admin(env.clone());
         assert!(amount_remaining >= amount_requested, "Insuffisance balance");
@@ -570,10 +555,7 @@ impl TokenVestingManager {
             .unwrap_or(Map::new(&env));
 
         // Access control check
-        caller.require_auth();
-        if !admins.get(caller.clone()).is_some() {
-            panic!("Not an admin");
-        }
+        Self::admin_check(caller.clone(), admins.clone());
 
         assert!(
             other_token_address != Self::get_token_address(env.clone()),
@@ -862,6 +844,15 @@ impl TokenVestingManager {
         );
 
         vesting_id
+    }
+
+    /// Access control check for admin functions.
+    fn admin_check(caller: Address, admins: Map<Address, bool>) {
+        caller.require_auth();
+        if !admins.get(caller.clone()).unwrap_or(false) {
+            panic!("Not an admin");
+        }
+
     }
 }
 
