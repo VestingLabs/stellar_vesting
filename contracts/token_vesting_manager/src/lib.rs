@@ -156,6 +156,7 @@ impl TokenVestingManager {
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
 
+        assert!(initial_unlock >= 0 && cliff_amount >= 0 && linear_vest_amount >= 0, "Invalid amount");
         assert!(
             linear_vest_amount + cliff_amount != 0,
             "Invalid vested amount"
