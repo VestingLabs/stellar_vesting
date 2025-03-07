@@ -89,7 +89,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -132,7 +132,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         admins.get(address).unwrap_or(false)
     }
@@ -181,7 +181,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -259,7 +259,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         vesting_by_id.set(vesting_id, vesting.clone());
         env.storage()
@@ -302,7 +302,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -323,7 +323,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         vesting_by_id.set(vesting_id.clone(), vesting.clone());
         env.storage()
@@ -416,7 +416,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -449,7 +449,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&ADMINS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -502,7 +502,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         // This will panic if there is no vesting associated with a given id.
         vesting_by_id.get(vesting_id).unwrap()
@@ -513,7 +513,7 @@ impl TokenVestingManager {
         env.storage()
             .persistent()
             .get(&RECIPIENTS)
-            .unwrap_or(Vec::new(&env))
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Returns the list of recipients in a specific range, `from` being inclusive and `to` being exclusive.
@@ -522,7 +522,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENTS)
-            .unwrap_or(Vec::new(&env));
+            .unwrap_or_else(|| Vec::new(&env));
 
         recipients.slice(from..to)
     }
@@ -533,7 +533,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENTS)
-            .unwrap_or(Vec::new(&env));
+            .unwrap_or_else(|| Vec::new(&env));
 
         recipients.len()
     }
@@ -544,9 +544,11 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
-        recipient_vestings.get(recipient).unwrap_or(Vec::new(&env))
+        recipient_vestings
+            .get(recipient)
+            .unwrap_or_else(|| Vec::new(&env))
     }
 
     /// Returns the list of vestings for the recipient in a specific range, `from` being inclusive and
@@ -561,9 +563,11 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
-        let vestings: Vec<u64> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
+        let vestings: Vec<u64> = recipient_vestings
+            .get(recipient)
+            .unwrap_or_else(|| Vec::new(&env));
 
         vestings.slice(from..to)
     }
@@ -574,11 +578,11 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         recipient_vestings
             .get(recipient)
-            .unwrap_or(Vec::new(&env))
+            .unwrap_or_else(|| Vec::new(&env))
             .len()
     }
 
@@ -588,9 +592,11 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
-        let recipient_ids: Vec<u64> = recipient_vestings.get(recipient).unwrap_or(Vec::new(&env));
+        let recipient_ids: Vec<u64> = recipient_vestings
+            .get(recipient)
+            .unwrap_or_else(|| Vec::new(&env));
 
         recipient_ids.len() != 0
     }
@@ -694,7 +700,7 @@ impl TokenVestingManager {
                 .storage()
                 .persistent()
                 .get(&RECIPIENTS)
-                .unwrap_or(Vec::new(&env));
+                .unwrap_or_else(|| Vec::new(&env));
 
             recipients.push_back(recipient.clone());
             env.storage().persistent().set(&RECIPIENTS, &recipients);
@@ -704,7 +710,7 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&VESTING_BY_ID)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         vesting_by_id.set(vesting_id, vesting.clone());
         env.storage()
@@ -715,11 +721,11 @@ impl TokenVestingManager {
             .storage()
             .persistent()
             .get(&RECIPIENT_VESTINGS)
-            .unwrap_or(Map::new(&env));
+            .unwrap_or_else(|| Map::new(&env));
 
         let mut recipient_ids: Vec<u64> = recipient_vestings
             .get(recipient.clone())
-            .unwrap_or(Vec::new(&env));
+            .unwrap_or_else(|| Vec::new(&env));
         recipient_ids.push_back(vesting_id);
         recipient_vestings.set(recipient.clone(), recipient_ids);
 
