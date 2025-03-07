@@ -13,7 +13,7 @@ fn deploy_manager_helper(
     StellarAssetClient,
     Address,
 ) {
-    let contract_id = env.register_contract(None, TokenVestingManager);
+    let contract_id = env.register(TokenVestingManager, ());
     let client = TokenVestingManagerClient::new(env, &contract_id);
 
     let admin: Address = Address::generate(env);

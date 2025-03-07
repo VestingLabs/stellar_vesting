@@ -57,7 +57,7 @@ impl TokenVestingFactory {
         let deployed_address = env
             .deployer()
             .with_address(env.current_contract_address(), new_salt)
-            .deploy(wasm_hash);
+            .deploy_v2(wasm_hash, Vec::<Val>::new(&env));
 
         // Invoke the init function with the given arguments.
         let res: Val = env.invoke_contract(&deployed_address, &symbol_short!("init"), init_args);
