@@ -12,7 +12,6 @@ extern crate std;
 
 use super::*;
 use soroban_sdk::{bytesn, testutils::Address as TestAddress, vec, BytesN, Env};
-use token_vesting_manager::TokenVestingManager;
 
 #[test]
 #[should_panic]
@@ -36,12 +35,9 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
     let contract_id = env.register(TokenVestingFactory, ());
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
-    let _ = env.register(TokenVestingManager, ());
-
-    let wasm_hash: BytesN<32> = bytesn!(
-        &env,
-        0xc9de61db77a96bb6dec4b9740a2c1a6a538d7fa404b5a661e2759f6f6bab2537
-    );
+    let wasm_hash = env
+        .deployer()
+        .upload_contract_wasm(token_vesting_manager_wasm::WASM);
 
     let owner: Address = Address::generate(&env);
 
@@ -49,9 +45,6 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
 
     let factory_caller = Address::generate(&env);
     let token_address = Address::generate(&env);
-
-    // // Mock all required auth calls if your contract uses them
-    // env.mock_all_auths();
 
     client.new_token_vesting_manager(&vec![&env, factory_caller.to_val(), token_address.to_val()]);
 }
