@@ -30,6 +30,7 @@ const VESTING_CREATED: Symbol = symbol_short!("VCREATED");
 const CLAIMED: Symbol = symbol_short!("CLAIMED");
 const VESTING_REVOKED: Symbol = symbol_short!("VREVOKED");
 const ADMIN_WITHDRAWN: Symbol = symbol_short!("ADMINWITH");
+const ADMIN_WITHDRAWN_OTHER: Symbol = symbol_short!("WITHOTHER");
 
 #[contracttype]
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -73,8 +74,10 @@ impl TokenVestingManager {
         }
 
         let mut admins: Map<Address, bool> = Map::new(&env);
-        admins.set(factory_caller, true);
+        admins.set(factory_caller.clone(), true);
         env.storage().persistent().set(&ADMINS, &admins);
+        env.events()
+            .publish((ADMIN_ACCESS_SET,), (factory_caller, true));
 
         let admin_count: u32 = 1;
         env.storage().persistent().set(&ADMIN_COUNT, &admin_count);
@@ -116,7 +119,6 @@ impl TokenVestingManager {
 
         admins.set(admin.clone(), is_enabled);
         env.storage().persistent().set(&ADMINS, &admins);
-
         env.events()
             .publish((ADMIN_ACCESS_SET,), (admin, is_enabled));
     }
@@ -424,11 +426,6 @@ impl TokenVestingManager {
         let amount_remaining = Self::amount_to_withdraw_by_admin(env.clone());
         assert!(amount_remaining >= amount_requested, "Insuffisance balance");
 
-        env.events().publish(
-            (ADMIN_WITHDRAWN,),
-            (caller.clone(), amount_requested.clone()),
-        );
-
         let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
         let _: Val = env.invoke_contract(
@@ -441,6 +438,9 @@ impl TokenVestingManager {
                 amount_requested.into_val(&env),
             ],
         );
+
+        env.events()
+            .publish((ADMIN_WITHDRAWN,), (caller, amount_requested));
     }
 
     /// Withdraws other ERC20 tokens accidentally sent to the contract's address.
@@ -475,6 +475,9 @@ impl TokenVestingManager {
                 balance,
             ],
         );
+
+        env.events()
+            .publish((ADMIN_WITHDRAWN_OTHER,), (caller, balance));
     }
 
     /// Returns the amount of tokens that are available for the admin to withdraw.
