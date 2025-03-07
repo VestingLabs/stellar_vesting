@@ -1,7 +1,17 @@
 #![cfg(test)]
 
+/// Import of the Token Vesting Manager Wasm code.
+/// Needed to register the contract Wasm and deploy the contract.
+mod token_vesting_manager_wasm {
+    soroban_sdk::contractimport!(
+        file = "../../target/wasm32-unknown-unknown/release/token_vesting_manager.wasm"
+    );
+}
+
+extern crate std;
+
 use super::*;
-use soroban_sdk::{bytesn, testutils::Address as TestAddress, vec, BytesN, Env};
+use soroban_sdk::{bytesn, testutils::Address as TestAddress, BytesN, vec, Env};
 use token_vesting_manager::TokenVestingManager;
 
 #[test]
@@ -26,13 +36,11 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
     let contract_id = env.register(TokenVestingFactory, ());
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
-    let manager_id = env.register(TokenVestingManager, ());
-
-    let wasm_hash = env.deployer().upload_contract_wasm(token_vesting_manager::WASM);
+    let _ = env.register(TokenVestingManager, ());
 
     let wasm_hash: BytesN<32> = bytesn!(
         &env,
-        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
+        0xc9de61db77a96bb6dec4b9740a2c1a6a538d7fa404b5a661e2759f6f6bab2537
     );
 
     let owner: Address = Address::generate(&env);
