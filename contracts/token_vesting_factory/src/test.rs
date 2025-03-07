@@ -8,8 +8,6 @@ mod token_vesting_manager_wasm {
     );
 }
 
-extern crate std;
-
 use super::*;
 use soroban_sdk::{bytesn, testutils::Address as TestAddress, vec, BytesN, Env};
 
