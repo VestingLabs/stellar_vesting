@@ -98,7 +98,7 @@ impl TokenVestingManager {
         }
 
         assert!(
-            admins.get(admin.clone()).unwrap_or(!is_enabled) != is_enabled,
+            admins.get(admin.clone()).unwrap_or(false) != is_enabled,
             "Flag provided already set"
         );
 
