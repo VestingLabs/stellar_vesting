@@ -2,6 +2,7 @@
 
 use super::*;
 use soroban_sdk::{bytesn, testutils::Address as TestAddress, vec, BytesN, Env};
+use token_vesting_manager::TokenVestingManager;
 
 #[test]
 #[should_panic]
@@ -25,28 +26,26 @@ fn test_deploy_token_vesting_manager_contract_from_factory() {
     let contract_id = env.register(TokenVestingFactory, ());
     let client = TokenVestingFactoryClient::new(&env, &contract_id);
 
-    // let manager_id = env.register(TokenVestingManager, ());
+    let manager_id = env.register(TokenVestingManager, ());
 
-    // let wasm_hash = env.deployer().upload_contract_wasm(token_vesting_manager::WASM);
+    let wasm_hash = env.deployer().upload_contract_wasm(token_vesting_manager::WASM);
 
-    // let wasm_hash: BytesN<32> = bytesn!(
-    //     &env,
-    //     0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
-    // );
+    let wasm_hash: BytesN<32> = bytesn!(
+        &env,
+        0x89424fc9ff1cf53ab622eb1616ebe19ad3815d9d139736ec2a2d59e75b075c60
+    );
 
-    // let owner: Address = Address::generate(&env);
+    let owner: Address = Address::generate(&env);
 
-    // client.init(&owner, &wasm_hash);
+    client.init(&owner, &wasm_hash);
 
-    // let factory_caller = Address::generate(&env);
-    // let token_address = Address::generate(&env);
+    let factory_caller = Address::generate(&env);
+    let token_address = Address::generate(&env);
 
-    // Mock all required auth calls if your contract uses them
+    // // Mock all required auth calls if your contract uses them
     // env.mock_all_auths();
 
-    // client.new_token_vesting_manager(&vec![&env, factory_caller.to_val(), token_address.to_val()]);
-
-    // client.new_token_vesting_manager(&vec![&env, factory_caller.to_val(), token_address.to_val()]);
+    client.new_token_vesting_manager(&vec![&env, factory_caller.to_val(), token_address.to_val()]);
 }
 
 #[test]

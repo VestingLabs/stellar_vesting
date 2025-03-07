@@ -5,11 +5,14 @@ edition = "2021"
 publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["lib", "cdylib"]
 doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
+token-vesting-manager = { path = "../token_vesting_manager" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+token-vesting-manager = { path = "../token_vesting_manager" }
+
