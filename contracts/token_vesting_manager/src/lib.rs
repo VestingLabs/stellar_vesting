@@ -696,7 +696,7 @@ impl TokenVestingManager {
                 .get(&RECIPIENTS)
                 .unwrap_or(Vec::new(&env));
 
-            recipients.insert(recipients.len(), recipient.clone());
+            recipients.push_back(recipient.clone());
             env.storage().persistent().set(&RECIPIENTS, &recipients);
         }
 
@@ -720,7 +720,7 @@ impl TokenVestingManager {
         let mut recipient_ids: Vec<u64> = recipient_vestings
             .get(recipient.clone())
             .unwrap_or(Vec::new(&env));
-        recipient_ids.insert(recipient_ids.len(), vesting_id);
+        recipient_ids.push_back(vesting_id);
         recipient_vestings.set(recipient.clone(), recipient_ids);
 
         env.storage()
