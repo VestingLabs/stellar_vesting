@@ -1,7 +1,7 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, symbol_short, vec, Address, Env, IntoVal, Map, Symbol,
-    Val, Vec,
+    contract, contractimpl, contracttype, symbol_short, token::TokenClient, Address, Env, Map,
+    Symbol, Vec,
 };
 
 /// Constants for storage keys.
@@ -286,15 +286,10 @@ impl TokenVestingManager {
 
         let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
-        let _: Val = env.invoke_contract(
-            &token_address,
-            &Symbol::new(&env, "transfer"),
-            vec![
-                &env,
-                env.current_contract_address().to_val(),
-                caller.to_val(),
-                claimable.into_val(&env),
-            ],
+        TokenClient::new(&env, &token_address).transfer(
+            &env.current_contract_address(),
+            &caller,
+            &claimable,
         );
     }
 
@@ -428,15 +423,10 @@ impl TokenVestingManager {
 
         let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
-        let _: Val = env.invoke_contract(
-            &token_address,
-            &Symbol::new(&env, "transfer"),
-            vec![
-                &env,
-                env.current_contract_address().to_val(),
-                caller.to_val(),
-                amount_requested.into_val(&env),
-            ],
+        TokenClient::new(&env, &token_address).transfer(
+            &env.current_contract_address(),
+            &caller,
+            &amount_requested,
         );
 
         env.events()
@@ -459,21 +449,13 @@ impl TokenVestingManager {
             "Invalid other token"
         );
 
-        let balance: Val = env.invoke_contract(
-            &other_token_address,
-            &Symbol::new(&env, "balance"),
-            vec![&env, env.current_contract_address().to_val()],
-        );
+        let balance =
+            TokenClient::new(&env, &other_token_address).balance(&env.current_contract_address());
 
-        let _: Val = env.invoke_contract(
-            &other_token_address,
-            &Symbol::new(&env, "transfer"),
-            vec![
-                &env,
-                env.current_contract_address().to_val(),
-                caller.to_val(),
-                balance,
-            ],
+        TokenClient::new(&env, &other_token_address).transfer(
+            &env.current_contract_address(),
+            &caller,
+            &balance,
         );
 
         env.events()
@@ -484,11 +466,8 @@ impl TokenVestingManager {
     pub fn amount_to_withdraw_by_admin(env: Env) -> i128 {
         let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
-        let balance: i128 = env.invoke_contract(
-            &token_address,
-            &Symbol::new(&env, "balance"),
-            vec![&env, env.current_contract_address().to_val()],
-        );
+        let balance =
+            TokenClient::new(&env, &token_address).balance(&env.current_contract_address());
 
         let reserved_tokens: i128 = env
             .storage()
@@ -741,16 +720,11 @@ impl TokenVestingManager {
 
         let token_address: Address = env.storage().persistent().get(&TOKEN_ADDRESS).unwrap();
 
-        let _: Val = env.invoke_contract(
-            &token_address,
-            &Symbol::new(&env, "transfer_from"),
-            vec![
-                &env,
-                env.current_contract_address().to_val(),
-                caller.to_val(),
-                env.current_contract_address().to_val(),
-                total_expected_amount.into_val(&env),
-            ],
+        TokenClient::new(&env, &token_address).transfer_from(
+            &env.current_contract_address(),
+            &caller,
+            &env.current_contract_address(),
+            &total_expected_amount,
         );
 
         vesting_id

@@ -2,7 +2,7 @@
 
 use super::*;
 use soroban_sdk::token::{StellarAssetClient, TokenClient};
-use soroban_sdk::{testutils::Address as TestAddress, testutils::Ledger, Env};
+use soroban_sdk::{testutils::Address as TestAddress, testutils::Ledger, vec, Env};
 
 fn deploy_manager_helper(
     env: &Env,
