@@ -488,11 +488,11 @@ impl TokenVestingManager {
         }
 
         if adjusted_reference_timestamp >= vesting.cliff_release_timestamp {
-            vesting_amount = vesting_amount + vesting.cliff_amount;
+            vesting_amount += vesting.cliff_amount;
         }
 
         if vesting.initial_unlock > 0 && reference_timestamp >= vesting.start_timestamp {
-            vesting_amount = vesting_amount + vesting.initial_unlock;
+            vesting_amount += vesting.initial_unlock;
         }
 
         let start_timestamp: u64;
@@ -515,10 +515,25 @@ impl TokenVestingManager {
             let truncated_current_vesting_duration_secs: i128 =
                 truncated_current_vesting_duration_secs.into();
 
-            let linear_vest_amount: i128 = (vesting.linear_vest_amount
-                / final_vesting_duration_secs)
-                * truncated_current_vesting_duration_secs;
-            vesting_amount = vesting_amount + linear_vest_amount;
+            let mut linear_vest_amount: i128;
+
+            if final_vesting_duration_secs == truncated_current_vesting_duration_secs {
+                linear_vest_amount = vesting.linear_vest_amount;
+            } else {
+                let number_of_intervals: i128 =
+                    final_vesting_duration_secs / vesting.release_interval_secs as i128;
+                let tokens_per_interval: i128 = vesting.linear_vest_amount / number_of_intervals;
+                let current_intervals: i128 =
+                    truncated_current_vesting_duration_secs / vesting.release_interval_secs as i128;
+
+                linear_vest_amount = tokens_per_interval * current_intervals;
+                let remainder = vesting.linear_vest_amount % number_of_intervals;
+                let remainder_distribution = (remainder * current_intervals) / number_of_intervals;
+
+                linear_vest_amount += remainder_distribution;
+            }
+
+            vesting_amount += linear_vest_amount;
         }
 
         vesting_amount
