@@ -16,29 +16,46 @@ const NEW_OWNER: Symbol = symbol_short!("NEWOWNER");
 const NEW_WASM_HASH: Symbol = symbol_short!("NEWHASH");
 const TOKEN_VESTING_MANAGER_CREATED: Symbol = symbol_short!("CREATED");
 
+// Minimum TTL before extending the instance lifetime: 20 days in 5 seconds ledger time
+const INSTANCE_LIFETIME_THRESHOLD: u32 = 345_600;
+// Extension amount for the instance lifetime: 30 days in 5 seconds ledger time
+const INSTANCE_EXTENSION_AMOUNT: u32 = 518_400;
+
 #[contract]
 pub struct TokenVestingFactory;
 
 #[contractimpl]
 impl TokenVestingFactory {
+    /// Extends the TTL for the contract instance
+    pub fn extend_instance_ttl(e: &Env) {
+        e.storage()
+            .instance()
+            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_EXTENSION_AMOUNT);
+    }
+
     /// Initialization function.
     pub fn init(env: Env, owner: Address, wasm_hash: BytesN<32>) {
-        if env.storage().persistent().has(&OWNER) {
+        if env.storage().instance().has(&OWNER) {
             panic!("Already initialized");
         }
 
         let initial_salt = BytesN::from_array(&env, &[0; 32]);
 
-        env.storage().persistent().set(&OWNER, &owner);
-        env.storage().persistent().set(&WASM_HASH, &wasm_hash);
-        env.storage().persistent().set(&SALT, &initial_salt);
+        env.storage().instance().set(&OWNER, &owner);
+        env.storage().instance().set(&WASM_HASH, &wasm_hash);
+        env.storage().instance().set(&SALT, &initial_salt);
+
+        // Set initial TTL
+        Self::extend_instance_ttl(&env);
     }
 
     /// Deploys a new TokenVestingManager contract and returns its address.
     pub fn new_token_vesting_manager(env: Env, init_args: Vec<Val>) -> (Address, Val) {
-        let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
+        Self::extend_instance_ttl(&env);
 
-        let mut salt: [u8; 32] = env.storage().persistent().get(&SALT).unwrap();
+        let wasm_hash: BytesN<32> = env.storage().instance().get(&WASM_HASH).unwrap();
+
+        let mut salt: [u8; 32] = env.storage().instance().get(&SALT).unwrap();
 
         // Increment the salt.
         for i in (0..32).rev() {
@@ -51,7 +68,7 @@ impl TokenVestingFactory {
         }
 
         let new_salt = BytesN::from_array(&env, &salt);
-        env.storage().persistent().set(&SALT, &new_salt);
+        env.storage().instance().set(&SALT, &new_salt);
 
         // Deploy the contract.
         let deployed_address = env
@@ -71,7 +88,9 @@ impl TokenVestingFactory {
 
     /// Updates the owner of the factory.
     pub fn update_owner(env: Env, caller: Address, new_owner: Address) {
-        let owner: Address = env.storage().persistent().get(&OWNER).unwrap();
+        Self::extend_instance_ttl(&env);
+
+        let owner: Address = env.storage().instance().get(&OWNER).unwrap();
 
         // Access control check
         caller.require_auth();
@@ -81,14 +100,16 @@ impl TokenVestingFactory {
 
         assert!(new_owner != owner, "New owner wrongly set");
 
-        env.storage().persistent().set(&OWNER, &new_owner);
+        env.storage().instance().set(&OWNER, &new_owner);
 
         env.events().publish((NEW_OWNER,), new_owner);
     }
 
     /// Updates the Wasm hash of the TokenVestingManager contract.
     pub fn update_vesting_manager_wasm_hash(env: Env, caller: Address, new_wasm_hash: BytesN<32>) {
-        let owner: Address = env.storage().persistent().get(&OWNER).unwrap();
+        Self::extend_instance_ttl(&env);
+
+        let owner: Address = env.storage().instance().get(&OWNER).unwrap();
 
         // Access control check
         caller.require_auth();
@@ -96,23 +117,27 @@ impl TokenVestingFactory {
             panic!("Not the owner");
         }
 
-        let wasm_hash: BytesN<32> = env.storage().persistent().get(&WASM_HASH).unwrap();
+        let wasm_hash: BytesN<32> = env.storage().instance().get(&WASM_HASH).unwrap();
 
         assert!(new_wasm_hash != wasm_hash, "New Wasm hash wrongly set");
 
-        env.storage().persistent().set(&WASM_HASH, &new_wasm_hash);
+        env.storage().instance().set(&WASM_HASH, &new_wasm_hash);
 
         env.events().publish((NEW_WASM_HASH,), new_wasm_hash);
     }
 
     /// Returns the owner of the factory.
     pub fn get_owner(env: Env) -> Address {
-        env.storage().persistent().get(&OWNER).unwrap()
+        Self::extend_instance_ttl(&env);
+
+        env.storage().instance().get(&OWNER).unwrap()
     }
 
     /// Returns the Wasm hash of the TokenVestingManager contract.
     pub fn get_vesting_manager_wasm_hash(env: Env) -> BytesN<32> {
-        env.storage().persistent().get(&WASM_HASH).unwrap()
+        Self::extend_instance_ttl(&env);
+
+        env.storage().instance().get(&WASM_HASH).unwrap()
     }
 }
 
