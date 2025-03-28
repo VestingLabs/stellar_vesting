@@ -62,10 +62,10 @@ pub struct CreateVestingBatchParams {
     pub linear_vest_amounts: Vec<i128>,
 }
 
-// Minimum TTL before extending the instance lifetime: 20 days in 5 seconds ledger time
-const INSTANCE_LIFETIME_THRESHOLD: u32 = 345_600;
-// Extension amount for the instance lifetime: 30 days in 5 seconds ledger time
-const INSTANCE_EXTENSION_AMOUNT: u32 = 518_400;
+// Minimum TTL before extending the storage lifetime: 20 days in 5 seconds ledger time
+const LIFETIME_THRESHOLD: u32 = 345_600;
+// Extension amount for the storage lifetime: 30 days in 5 seconds ledger time
+const EXTENSION_AMOUNT: u32 = 518_400;
 
 #[contract]
 pub struct TokenVestingManager;
@@ -76,7 +76,14 @@ impl TokenVestingManager {
     pub fn extend_instance_ttl(e: &Env) {
         e.storage()
             .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_EXTENSION_AMOUNT);
+            .extend_ttl(LIFETIME_THRESHOLD, EXTENSION_AMOUNT);
+    }
+
+    /// Extends the TTL for persistent storage
+    pub fn extend_persistent_ttl(e: &Env, key: Symbol) {
+        e.storage()
+            .persistent()
+            .extend_ttl(&key, LIFETIME_THRESHOLD, EXTENSION_AMOUNT);
     }
 
     /// Initialization function.
@@ -96,6 +103,10 @@ impl TokenVestingManager {
         env.storage()
             .instance()
             .set(&TOKEN_ADDRESS, &token_address);
+
+        // Initialize tokens reserved for vesting with TTL extension
+        env.storage().persistent().set(&TOKENS_RESERVED_FOR_VESTING, &0_i128);
+        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         // Set initial TTL
         Self::extend_instance_ttl(&env);
@@ -262,6 +273,8 @@ impl TokenVestingManager {
     /// Allows a recipient to claim their vested tokens.
     pub fn claim(env: Env, caller: Address, vesting_id: u64) {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, VESTING_BY_ID);
+        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
 
@@ -323,6 +336,8 @@ impl TokenVestingManager {
     /// Revokes a vesting arrangement before it has been fully claimed.
     pub fn revoke_vesting(env: Env, caller: Address, vesting_id: u64) {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, VESTING_BY_ID);
+        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         let admins: Map<Address, bool> = env
             .storage()
@@ -532,6 +547,7 @@ impl TokenVestingManager {
     /// Retrieves information about a specific vesting arrangement.
     pub fn get_vesting_info(env: Env, vesting_id: u64) -> Vesting {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, VESTING_BY_ID);
 
         let vesting_by_id: Map<u64, Vesting> = env
             .storage()
@@ -546,6 +562,7 @@ impl TokenVestingManager {
     /// Returns all recipient addresses which have at least one vesting schedule set.
     pub fn get_all_recipients(env: Env) -> Vec<Address> {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENTS);
 
         env.storage()
             .persistent()
@@ -556,6 +573,7 @@ impl TokenVestingManager {
     /// Returns the list of recipients in a specific range, `from` being inclusive and `to` being exclusive.
     pub fn get_all_recipients_sliced(env: Env, from: u32, to: u32) -> Vec<Address> {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENTS);
 
         let recipients: Vec<Address> = env
             .storage()
@@ -569,6 +587,7 @@ impl TokenVestingManager {
     /// Returns the number of recipients.
     pub fn get_all_recipients_len(env: Env) -> u32 {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENTS);
 
         let recipients: Vec<Address> = env
             .storage()
@@ -582,6 +601,7 @@ impl TokenVestingManager {
     /// Returns the list of vestings for the recipient.
     pub fn get_all_recipient_vestings(env: Env, recipient: Address) -> Vec<u64> {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
 
         let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
@@ -602,6 +622,9 @@ impl TokenVestingManager {
         to: u32,
         recipient: Address,
     ) -> Vec<u64> {
+        Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
+
         let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
             .persistent()
@@ -618,6 +641,7 @@ impl TokenVestingManager {
     /// Returns the length of all vestings for the recipient.
     pub fn get_all_recipient_vestings_len(env: Env, recipient: Address) -> u32 {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
 
         let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
@@ -634,6 +658,7 @@ impl TokenVestingManager {
     /// Checks if a given address is a recipient of any vesting schedule.
     pub fn is_recipient(env: Env, recipient: Address) -> bool {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
 
         let recipient_vestings: Map<Address, Vec<u64>> = env
             .storage()
@@ -658,6 +683,7 @@ impl TokenVestingManager {
     /// Returns the amount of token reserved for vesting in the contract.
     pub fn get_tokens_reserved_for_vesting(env: Env) -> i128 {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         env.storage()
             .persistent()
@@ -682,6 +708,12 @@ impl TokenVestingManager {
         release_interval_secs: u64,
         linear_vest_amount: i128,
     ) -> u64 {
+        Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
+        Self::extend_persistent_ttl(&env, RECIPIENTS);
+        Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
+        Self::extend_persistent_ttl(&env, VESTING_BY_ID);
+
         assert!(
             initial_unlock >= 0 && cliff_amount >= 0 && linear_vest_amount >= 0,
             "Invalid amount"
@@ -742,9 +774,9 @@ impl TokenVestingManager {
             claimed_amount: 0,
         };
 
-        let vesting_id: u64 = env.storage().persistent().get(&NONCE).unwrap_or(0);
+        let vesting_id: u64 = env.storage().instance().get(&NONCE).unwrap_or(0);
         let new_vesting_id: u64 = vesting_id + 1;
-        env.storage().persistent().set(&NONCE, &new_vesting_id);
+        env.storage().instance().set(&NONCE, &new_vesting_id);
 
         if !Self::is_recipient(env.clone(), recipient.clone()) {
             let mut recipients: Vec<Address> = env

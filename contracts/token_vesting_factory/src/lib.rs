@@ -17,9 +17,9 @@ const NEW_WASM_HASH: Symbol = symbol_short!("NEWHASH");
 const TOKEN_VESTING_MANAGER_CREATED: Symbol = symbol_short!("CREATED");
 
 // Minimum TTL before extending the instance lifetime: 20 days in 5 seconds ledger time
-const INSTANCE_LIFETIME_THRESHOLD: u32 = 345_600;
+const LIFETIME_THRESHOLD: u32 = 345_600;
 // Extension amount for the instance lifetime: 30 days in 5 seconds ledger time
-const INSTANCE_EXTENSION_AMOUNT: u32 = 518_400;
+const EXTENSION_AMOUNT: u32 = 518_400;
 
 #[contract]
 pub struct TokenVestingFactory;
@@ -30,7 +30,7 @@ impl TokenVestingFactory {
     pub fn extend_instance_ttl(e: &Env) {
         e.storage()
             .instance()
-            .extend_ttl(INSTANCE_LIFETIME_THRESHOLD, INSTANCE_EXTENSION_AMOUNT);
+            .extend_ttl(LIFETIME_THRESHOLD, EXTENSION_AMOUNT);
     }
 
     /// Initialization function.
