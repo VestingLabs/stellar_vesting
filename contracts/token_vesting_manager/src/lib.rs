@@ -105,8 +105,7 @@ impl TokenVestingManager {
             .set(&TOKEN_ADDRESS, &token_address);
 
         // Initialize tokens reserved for vesting with TTL extension
-        env.storage().persistent().set(&TOKENS_RESERVED_FOR_VESTING, &0_i128);
-        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
+        env.storage().instance().set(&TOKENS_RESERVED_FOR_VESTING, &0_i128);
 
         // Set initial TTL
         Self::extend_instance_ttl(&env);
@@ -274,7 +273,6 @@ impl TokenVestingManager {
     pub fn claim(env: Env, caller: Address, vesting_id: u64) {
         Self::extend_instance_ttl(&env);
         Self::extend_persistent_ttl(&env, VESTING_BY_ID);
-        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         let mut vesting = Self::get_vesting_info(env.clone(), vesting_id.clone());
 
@@ -310,13 +308,13 @@ impl TokenVestingManager {
 
         let reserved_tokens: i128 = env
             .storage()
-            .persistent()
+            .instance()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0)
             - claimable;
 
         env.storage()
-            .persistent()
+            .instance()
             .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
 
         env.events().publish(
@@ -337,7 +335,6 @@ impl TokenVestingManager {
     pub fn revoke_vesting(env: Env, caller: Address, vesting_id: u64) {
         Self::extend_instance_ttl(&env);
         Self::extend_persistent_ttl(&env, VESTING_BY_ID);
-        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         let admins: Map<Address, bool> = env
             .storage()
@@ -377,13 +374,13 @@ impl TokenVestingManager {
 
         let reserved_tokens = env
             .storage()
-            .persistent()
+            .instance()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0)
             - amount_remaining;
 
         env.storage()
-            .persistent()
+            .instance()
             .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
 
         env.events().publish(
@@ -537,7 +534,7 @@ impl TokenVestingManager {
 
         let reserved_tokens: i128 = env
             .storage()
-            .persistent()
+            .instance()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0);
 
@@ -683,10 +680,9 @@ impl TokenVestingManager {
     /// Returns the amount of token reserved for vesting in the contract.
     pub fn get_tokens_reserved_for_vesting(env: Env) -> i128 {
         Self::extend_instance_ttl(&env);
-        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
 
         env.storage()
-            .persistent()
+            .instance()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0)
     }
@@ -709,7 +705,6 @@ impl TokenVestingManager {
         linear_vest_amount: i128,
     ) -> u64 {
         Self::extend_instance_ttl(&env);
-        Self::extend_persistent_ttl(&env, TOKENS_RESERVED_FOR_VESTING);
         Self::extend_persistent_ttl(&env, RECIPIENTS);
         Self::extend_persistent_ttl(&env, RECIPIENT_VESTINGS);
         Self::extend_persistent_ttl(&env, VESTING_BY_ID);
@@ -751,13 +746,13 @@ impl TokenVestingManager {
 
         let reserved_tokens = env
             .storage()
-            .persistent()
+            .instance()
             .get(&TOKENS_RESERVED_FOR_VESTING)
             .unwrap_or(0_i128)
             + total_expected_amount;
 
         env.storage()
-            .persistent()
+            .instance()
             .set(&TOKENS_RESERVED_FOR_VESTING, &reserved_tokens);
 
         let vesting: Vesting = Vesting {
