@@ -88,36 +88,33 @@ impl TokenVestingManager {
 
     /// Initialization function.
     pub fn init(env: Env, factory_caller: Address, token_address: Address) {
-        if env.storage().instance().has(&ADMINS) {
+        if env.storage().persistent().has(&ADMINS) {
             panic!("Already initialized");
         }
 
         let mut admins: Map<Address, bool> = Map::new(&env);
         admins.set(factory_caller.clone(), true);
-        env.storage().instance().set(&ADMINS, &admins);
+        env.storage().persistent().set(&ADMINS, &admins);
         env.events()
             .publish((ADMIN_ACCESS_SET,), (factory_caller, true));
 
         let admin_count: u32 = 1;
         env.storage().instance().set(&ADMIN_COUNT, &admin_count);
-        env.storage()
-            .instance()
-            .set(&TOKEN_ADDRESS, &token_address);
-
-        // Initialize tokens reserved for vesting with TTL extension
-        env.storage().instance().set(&TOKENS_RESERVED_FOR_VESTING, &0_i128);
+        env.storage().instance().set(&TOKEN_ADDRESS, &token_address);
 
         // Set initial TTL
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
     }
 
     /// Adds a new admin or remove an existing one for the Token Vesting Manager contract.
     pub fn set_admin(env: Env, caller: Address, admin: Address, is_enabled: bool) {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let mut admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
@@ -133,19 +130,15 @@ impl TokenVestingManager {
 
         if is_enabled {
             let new_admin_count: u32 = admin_count + 1;
-            env.storage()
-                .instance()
-                .set(&ADMIN_COUNT, &new_admin_count);
+            env.storage().instance().set(&ADMIN_COUNT, &new_admin_count);
         } else {
             assert!(admin_count > 1, "There must always be at least 1 admin");
             let new_admin_count: u32 = admin_count - 1;
-            env.storage()
-                .instance()
-                .set(&ADMIN_COUNT, &new_admin_count);
+            env.storage().instance().set(&ADMIN_COUNT, &new_admin_count);
         }
 
         admins.set(admin.clone(), is_enabled);
-        env.storage().instance().set(&ADMINS, &admins);
+        env.storage().persistent().set(&ADMINS, &admins);
         env.events()
             .publish((ADMIN_ACCESS_SET,), (admin, is_enabled));
     }
@@ -160,10 +153,11 @@ impl TokenVestingManager {
     /// Returns true if the given address is an admin, false otherwise.
     pub fn is_admin(env: Env, address: Address) -> bool {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
@@ -185,8 +179,9 @@ impl TokenVestingManager {
         linear_vest_amount: i128,
     ) -> u64 {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
-        let admins: Map<Address, bool> = env.storage().instance().get(&ADMINS).unwrap();
+        let admins: Map<Address, bool> = env.storage().persistent().get(&ADMINS).unwrap();
 
         // Access control check
         Self::admin_check(caller.clone(), admins.clone());
@@ -213,10 +208,11 @@ impl TokenVestingManager {
         create_vesting_batch_params: CreateVestingBatchParams,
     ) -> Vec<u64> {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
@@ -335,10 +331,11 @@ impl TokenVestingManager {
     pub fn revoke_vesting(env: Env, caller: Address, vesting_id: u64) {
         Self::extend_instance_ttl(&env);
         Self::extend_persistent_ttl(&env, VESTING_BY_ID);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
@@ -467,10 +464,11 @@ impl TokenVestingManager {
     /// Allows the admin to withdraw ERC20 tokens not locked in vesting.
     pub fn withdraw_admin(env: Env, caller: Address, amount_requested: i128) {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
@@ -495,10 +493,11 @@ impl TokenVestingManager {
     /// Withdraws other ERC20 tokens accidentally sent to the contract's address.
     pub fn withdraw_other_token(env: Env, caller: Address, other_token_address: Address) {
         Self::extend_instance_ttl(&env);
+        Self::extend_persistent_ttl(&env, ADMINS);
 
         let admins: Map<Address, bool> = env
             .storage()
-            .instance()
+            .persistent()
             .get(&ADMINS)
             .unwrap_or_else(|| Map::new(&env));
 
