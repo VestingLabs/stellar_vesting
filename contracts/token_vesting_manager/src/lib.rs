@@ -101,6 +101,21 @@ impl TokenVestingManager {
         let admin_count: u32 = 1;
         env.storage().instance().set(&ADMIN_COUNT, &admin_count);
         env.storage().instance().set(&TOKEN_ADDRESS, &token_address);
+        env.storage()
+            .persistent()
+            .set(&RECIPIENTS, &Vec::<Address>::new(&env));
+        let empty_recipient_vestings: Map<Address, Vec<u64>> = Map::new(&env);
+        env.storage()
+            .persistent()
+            .set(&RECIPIENT_VESTINGS, &empty_recipient_vestings);
+        let empty_vesting_by_id: Map<u64, Vesting> = Map::new(&env);
+        env.storage()
+            .persistent()
+            .set(&VESTING_BY_ID, &empty_vesting_by_id);
+        env.storage().instance().set(&NONCE, &0_u64);
+        env.storage()
+            .instance()
+            .set(&TOKENS_RESERVED_FOR_VESTING, &0_i128);
 
         // Set initial TTL
         Self::extend_instance_ttl(&env);
