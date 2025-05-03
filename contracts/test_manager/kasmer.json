@@ -1,0 +1,5 @@
+{
+    "contracts": [
+        "../token_vesting_manager"
+    ]
+  }
